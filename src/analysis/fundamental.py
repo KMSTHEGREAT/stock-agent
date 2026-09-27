@@ -3,6 +3,7 @@ Fundamental analysis engine.
 Fetches data from Screener.in (scraped) and yfinance.
 All computations are deterministic.
 """
+import io
 import requests
 from bs4 import BeautifulSoup
 import yfinance as yf
@@ -34,6 +35,21 @@ class FundamentalAnalyzer:
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
         })
+
+    def _table_to_df(self, table_element) -> Optional[pd.DataFrame]:
+        """Parse a BeautifulSoup table element to DataFrame."""
+        if table_element is None:
+            return None
+        
+        try:
+            html = str(table_element)
+            # Wrap in proper HTML structure for pandas to parse
+            full_html = f"<html><body>{html}</body></html>"
+            dfs = pd.read_html(io.StringIO(full_html))
+            return dfs[0] if dfs else None
+        except Exception as e:
+            logger.error(f"Error parsing table: {e}")
+            return None
     
     def analyze(self, nse_symbol: str) -> Optional[FundamentalMetrics]:
         """
