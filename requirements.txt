@@ -1,0 +1,41 @@
+# Core
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+
+# Data fetching
+yfinance>=0.2.40
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+feedparser>=6.0.10
+
+# NSE data (optional, fallback)
+nsepython>=2.0.0
+
+# Technical analysis
+pandas>=2.1.0
+pandas-ta>=0.3.14b1
+numpy>=1.24.0
+
+# LLM
+ollama>=0.3.0
+instructor>=1.0.0
+openai>=1.30.0  # For instructor compatibility
+
+# Database
+sqlite-utils>=3.35.0
+
+# News search
+duckduckgo-search>=4.1.0
+
+# Utilities
+tenacity>=8.2.0  # For retries
+click>=8.1.0  # For CLI
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+
+# UI (Phase 7)
+streamlit>=1.28.0
+plotly>=5.18.0
