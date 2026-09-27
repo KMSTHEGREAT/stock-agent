@@ -56,3 +56,4 @@ Thumbs.db
 data/cache/
 data/raw/
 *.pkl
+output.txt

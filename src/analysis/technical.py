@@ -97,13 +97,18 @@ class TechnicalAnalyzer:
         
         # MACD
         macd = ta.macd(df["Close"], 
-                      fast=TECHNICAL["macd_fast"],
-                      slow=TECHNICAL["macd_slow"],
-                      signal=TECHNICAL["macd_signal"])
+                    fast=TECHNICAL["macd_fast"],
+                    slow=TECHNICAL["macd_slow"],
+                    signal=TECHNICAL["macd_signal"])
         if macd is not None:
-            df["MACD"] = macd[f"MACD_{TECHNICAL['macd_fast']}_{TECHNICAL['macd_slow']}_{TECHNICAL['macd_signal']}"]
-            df["MACD_signal"] = macd[f"MACDs_{TECHNICAL['macd_fast']}_{TECHNICAL['macd_slow']}_{TECHNICAL['macd_signal']}"]
-            df["MACD_hist"] = macd[f"MACDh_{TECHNICAL['macd_fast']}_{TECHNICAL['macd_slow']}_{TECHNICAL['macd_signal']}"]
+            # Find columns by prefix instead of exact name
+            for col in macd.columns:
+                if col.startswith("MACD_"):
+                    df["MACD"] = macd[col]
+                elif col.startswith("MACDs_"):
+                    df["MACD_signal"] = macd[col]
+                elif col.startswith("MACDh_"):
+                    df["MACD_hist"] = macd[col]
         
         # Moving Averages
         for period in TECHNICAL["sma_periods"]:
@@ -113,30 +118,41 @@ class TechnicalAnalyzer:
         df["EMA_12"] = ta.ema(df["Close"], length=12)
         df["EMA_26"] = ta.ema(df["Close"], length=26)
         
-        # Bollinger Bands
+        # Bollinger Bands - handle dynamic column names
         bbands = ta.bbands(df["Close"], 
-                          length=TECHNICAL["bb_period"],
-                          std=TECHNICAL["bb_std"])
-        if bbands is not None:
-            df["BB_upper"] = bbands[f"BBU_{TECHNICAL['bb_period']}_{TECHNICAL['bb_std']}"]
-            df["BB_lower"] = bbands[f"BBL_{TECHNICAL['bb_period']}_{TECHNICAL['bb_std']}"]
-            df["BB_mid"] = bbands[f"BBM_{TECHNICAL['bb_period']}_{TECHNICAL['bb_std']}"]
+                        length=TECHNICAL["bb_period"],
+                        std=TECHNICAL["bb_std"])
+        if bbands is not None and not bbands.empty:
+            for col in bbands.columns:
+                if col.startswith("BBL_"):
+                    df["BB_lower"] = bbands[col]
+                elif col.startswith("BBM_"):
+                    df["BB_mid"] = bbands[col]
+                elif col.startswith("BBU_"):
+                    df["BB_upper"] = bbands[col]
         
         # ATR (Average True Range)
         df["ATR"] = ta.atr(df["High"], df["Low"], df["Close"], 
-                           length=TECHNICAL["atr_period"])
+                        length=TECHNICAL["atr_period"])
         
         # Volume indicators
         df["Volume_MA_20"] = df["Volume"].rolling(window=20).mean()
+        
+        # Calculate volume ratio (current volume / 20-day average)
+        if len(df) >= 20:
+            df["Volume_ratio"] = df["Volume"] / df["Volume_MA_20"]
         
         # OBV (On Balance Volume)
         df["OBV"] = ta.obv(df["Close"], df["Volume"])
         
         # Stochastic
         stoch = ta.stoch(df["High"], df["Low"], df["Close"], k=14, d=3)
-        if stoch is not None:
-            df["Stoch_K"] = stoch["STOCHk_14_3_3"]
-            df["Stoch_D"] = stoch["STOCHd_14_3_3"]
+        if stoch is not None and not stoch.empty:
+            for col in stoch.columns:
+                if col.startswith("STOCHk_"):
+                    df["Stoch_K"] = stoch[col]
+                elif col.startswith("STOCHd_"):
+                    df["Stoch_D"] = stoch[col]
         
         return df
     
