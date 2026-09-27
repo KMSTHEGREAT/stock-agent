@@ -25,7 +25,7 @@ class PriceFetcher:
         self.symbol_mapper = symbol_mapper or SymbolMapper()
     
     def get_historical_data(self, nse_symbol: str, period: str = "1y",
-                           interval: str = "1d") -> Optional[pd.DataFrame]:
+                       interval: str = "1d") -> Optional[pd.DataFrame]:
         """
         Fetch historical OHLCV data with corporate action adjustment.
         
@@ -43,7 +43,7 @@ class PriceFetcher:
         cached = self.cache.get(cache_key, max_age_hours=24)
         if cached is not None:
             logger.debug(f"Cache hit for {nse_symbol} historical data")
-            return pd.DataFrame(cached)
+            return self._dict_to_dataframe(cached)
         
         try:
             # Convert to Yahoo Finance symbol
@@ -52,7 +52,7 @@ class PriceFetcher:
             # Fetch data with auto_adjust=True for corporate actions
             ticker = yf.Ticker(yahoo_symbol)
             df = ticker.history(period=period, interval=interval, 
-                              auto_adjust=True)
+                            auto_adjust=True)
             
             if df.empty:
                 logger.warning(f"No data returned for {yahoo_symbol}")
@@ -61,9 +61,10 @@ class PriceFetcher:
             # Clean and validate data
             df = self._clean_price_data(df)
             
-            # Cache the data
-            self.cache.set(cache_key, df.to_dict(), ttl_hours=24, 
-                          data_type="json")
+            # Cache the data (serialize safely)
+            cache_data = self._dataframe_to_dict(df)
+            self.cache.set(cache_key, cache_data, ttl_hours=24, 
+                        data_type="json")
             
             logger.info(f"Fetched {len(df)} rows for {nse_symbol} ({period})")
             return df
@@ -71,6 +72,50 @@ class PriceFetcher:
         except Exception as e:
             logger.error(f"Error fetching data for {nse_symbol}: {e}")
             return None
+
+    def _dataframe_to_dict(self, df: pd.DataFrame) -> dict:
+        """Convert DataFrame to JSON-serializable dict."""
+        # Reset index to make date a column
+        df_reset = df.reset_index()
+        
+        # Convert all column names to strings
+        df_reset.columns = [str(col) for col in df_reset.columns]
+        
+        # Find date column and convert to string
+        date_col = None
+        for col in df_reset.columns:
+            if 'date' in col.lower() or 'index' in col.lower():
+                date_col = col
+                break
+        
+        if date_col:
+            df_reset[date_col] = df_reset[date_col].astype(str)
+        
+        # Convert to dict with string keys
+        result = df_reset.to_dict(orient='records')
+        return {"data": result, "columns": list(df_reset.columns)}
+
+    def _dict_to_dataframe(self, cached: dict) -> pd.DataFrame:
+        """Convert cached dict back to DataFrame."""
+        if isinstance(cached, dict) and 'data' in cached:
+            df = pd.DataFrame(cached['data'])
+            
+            # Convert date column back to datetime index
+            date_col = None
+            for col in df.columns:
+                if 'date' in col.lower():
+                    date_col = col
+                    break
+            
+            if date_col:
+                df[date_col] = pd.to_datetime(df[date_col])
+                df = df.set_index(date_col)
+                df = df.sort_index()
+            
+            return df
+        else:
+            # Legacy format
+            return pd.DataFrame(cached)
     
     def get_current_price(self, nse_symbol: str) -> Optional[float]:
         """Get current/latest price for a stock."""
