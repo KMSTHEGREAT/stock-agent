@@ -7,7 +7,6 @@ import re
 import ollama
 from typing import Optional, Dict, List
 import logging
-from pydantic import BaseModel, Field
 from src.schemas.stock_analysis import (
     TechnicalMetrics, FundamentalMetrics, MarketContext
 )
@@ -16,20 +15,6 @@ from src.utils.logger import setup_logger
 from config.settings import LLM
 
 logger = setup_logger(__name__)
-
-class RiskFlags(BaseModel):
-    promoter_pledge_risk: bool = Field(description="High promoter pledging risk")
-    fii_outflow_risk: bool = Field(description="FII outflow pressure risk")
-    liquidity_risk: bool = Field(description="Low liquidity risk for small/mid caps")
-    regulatory_risk: str = Field(description="Any regulatory concerns (or empty string)")
-    corporate_governance_risk: str = Field(description="Governance concerns (or empty string)")
-
-class AnalysisResponse(BaseModel):
-    analysis_summary: str = Field(description="Brief 2-3 sentence analysis summary in Indian market context")
-    key_risks: List[str] = Field(description="Top 3-5 risks specific to Indian markets")
-    key_catalysts: List[str] = Field(description="Top 3-5 potential positive catalysts")
-    risk_flags: RiskFlags
-    confidence_level: float = Field(description="Confidence in analysis (0.0 to 1.0)", ge=0.0, le=1.0)
 
 class LLMSynthesizer:
     """Uses Qwen 3 4B to synthesize qualitative analysis from computed metrics."""
@@ -98,7 +83,7 @@ class LLMSynthesizer:
         news_context: str = "",
         market_context: Optional[MarketContext] = None
     ) -> Optional[Dict]:
-        """Generate qualitative analysis using LLM wrapped with Instructor."""
+        """Generate qualitative analysis using LLM."""
         logger.info(f"Starting LLM synthesis for {symbol}")
         
         prompt = self._build_prompt(
@@ -109,10 +94,8 @@ class LLMSynthesizer:
         )
         
         try:
-            # Assumes self.client is an instructor-patched client (e.g., instructor.from_ollama(ollama.Client()))
-            response = self.client.chat.completions.create(
+            response = ollama.chat(
                 model=self.model,
-                response_model=AnalysisResponse, # Instructor handles parsing & validation perfectly
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
@@ -124,14 +107,19 @@ class LLMSynthesizer:
                 }
             )
             
-            # Instructor returns a fully formed Pydantic object; convert to dictionary
-            result = response.model_dump()
+            content = response['message']['content']
+            result = self._extract_json(content)
+            
+            if result is None:
+                logger.error(f"Could not extract JSON for {symbol}")
+                return self._fallback_response(symbol)
+            
             result = self._validate_output(result)
             logger.info(f"LLM synthesis complete for {symbol}")
             return result
             
         except Exception as e:
-            logger.error(f"LLM/Instructor error for {symbol}: {e}")
+            logger.error(f"LLM error for {symbol}: {e}")
             return self._fallback_response(symbol)
     
     def analyze_news_sentiment(self, symbol: str, news_items: List[Dict]) -> Optional[str]:
