@@ -34,9 +34,9 @@ LLM = {
     "model": "qwen3:4b",
     "base_url": "http://localhost:11434",
     "temperature": 0.3,
-    "max_tokens": 2000,
+    "max_tokens": 2000,  # Increased from 1000 - Qwen 3 needs room for thinking
     "num_ctx": 4096,
-    "timeout": 120,
+    "timeout": 180,  # Increased timeout for thinking mode
 }
 
 # API Keys (add to .env file)
