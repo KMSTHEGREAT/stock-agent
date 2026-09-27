@@ -263,10 +263,11 @@ class FundamentalAnalyzer:
         if not table:
             return data
         
+        df = self._table_to_df(table)
+        if df is None or df.empty:
+            return data
+        
         try:
-            # Read table as DataFrame
-            df = pd.read_html(str(table))[0]
-            
             # Get latest values (last column)
             if len(df.columns) > 1:
                 latest_col = df.columns[-1]
@@ -278,103 +279,91 @@ class FundamentalAnalyzer:
                     if pd.isna(value):
                         continue
                     
+                    # Clean value - remove % and commas
+                    if isinstance(value, str):
+                        value = value.replace('%', '').replace(',', '').strip()
+                    
                     # Map labels to our field names
                     if 'roce' in label:
-                        data['roce'] = float(value)
+                        data['roce'] = self._safe_float(value)
                     elif 'roe' in label:
-                        data['roe'] = float(value)
+                        data['roe'] = self._safe_float(value)
                     elif 'debtor days' in label:
-                        data['debtor_days'] = float(value)
+                        data['debtor_days'] = self._safe_float(value)
                     elif 'inventory days' in label:
-                        data['inventory_days'] = float(value)
+                        data['inventory_days'] = self._safe_float(value)
                     elif 'days payable' in label:
-                        data['days_payable'] = float(value)
+                        data['days_payable'] = self._safe_float(value)
                     elif 'cash conversion cycle' in label:
-                        data['cash_conversion_cycle'] = float(value)
+                        data['cash_conversion_cycle'] = self._safe_float(value)
                     elif 'working capital' in label:
-                        data['working_capital_days'] = float(value)
+                        data['working_capital_days'] = self._safe_float(value)
                     elif 'roa' in label:
-                        data['roa'] = float(value)
-                    elif 'net profit' in label or 'net margin' in label:
-                        data['net_margin'] = float(value)
-                    elif 'debt to equity' in label:
-                        data['debt_to_equity'] = float(value)
-                    elif 'p/e' in label or 'price to earnings' in label:
-                        data['pe_ratio'] = float(value)
-                    elif 'p/b' in label or 'price to book' in label:
-                        data['pb_ratio'] = float(value)
-                    elif 'dividend payout' in label:
-                        data['payout_ratio'] = float(value)
-                    elif 'sales growth' in label:
-                        data['sales_growth'] = float(value)
-                    elif 'profit growth' in label:
-                        data['profit_growth'] = float(value)
+                        data['roa'] = self._safe_float(value)
         
         except Exception as e:
             logger.error(f"Error parsing ratios table: {e}")
         
         return data
+
+    def _safe_float(self, value) -> Optional[float]:
+        """Safely convert value to float."""
+        if value is None or pd.isna(value):
+            return None
+        try:
+            if isinstance(value, str):
+                value = value.replace('%', '').replace(',', '').strip()
+                if not value or value == '-':
+                    return None
+            return float(value)
+        except (ValueError, TypeError):
+            return None
     
     def _parse_shareholding(self, soup: BeautifulSoup) -> Dict:
         """Parse shareholding pattern from Screener.in."""
         data = {}
         
         # Look for shareholding section
-        shareholding_section = soup.find('section', {'id': 'shareholding'})
-        if not shareholding_section:
-            # Try finding by class
-            for section in soup.find_all('section'):
-                if 'shareholding' in str(section.get('id', '')).lower():
-                    shareholding_section = section
-                    break
+        shareholding_section = None
+        for section in soup.find_all('section'):
+            section_id = str(section.get('id', '')).lower()
+            if 'shareholding' in section_id or 'shareholders' in section_id:
+                shareholding_section = section
+                break
         
         if not shareholding_section:
             return data
         
-        # Find table with shareholding data
         tables = shareholding_section.find_all('table')
         if not tables:
             return data
         
-        try:
-            for table in tables:
-                df = pd.read_html(str(table))[0]
-                
-                # Look for promoter, FII, DII rows
+        for table in tables:
+            df = self._table_to_df(table)
+            if df is None or df.empty:
+                continue
+            
+            try:
                 for idx, row in df.iterrows():
+                    # Get the label - it may contain button text
                     label = str(row.iloc[0]).lower()
                     
+                    # Get the latest value (last column)
+                    value = row.iloc[-1] if len(row) > 1 else None
+                    
                     if 'promoters' in label or 'promoter' in label:
-                        # Get latest value (last column with data)
-                        for col in reversed(df.columns[1:]):
-                            val = row[col]
-                            if pd.notna(val):
-                                data['promoter_holding'] = float(val)
-                                break
-                    
-                    elif 'fii' in label or 'foreign' in label or 'institutional' in label:
-                        for col in reversed(df.columns[1:]):
-                            val = row[col]
-                            if pd.notna(val):
-                                data['fii_holding'] = float(val)
-                                break
-                    
+                        data['promoter_holding'] = self._safe_float(value)
+                    elif 'fii' in label or 'foreign' in label:
+                        data['fii_holding'] = self._safe_float(value)
                     elif 'dii' in label or 'domestic' in label:
-                        for col in reversed(df.columns[1:]):
-                            val = row[col]
-                            if pd.notna(val):
-                                data['dii_holding'] = float(val)
-                                break
-                    
-                    elif 'pledged' in label:
-                        for col in reversed(df.columns[1:]):
-                            val = row[col]
-                            if pd.notna(val):
-                                data['pledged_pct'] = float(val)
-                                break
-        
-        except Exception as e:
-            logger.error(f"Error parsing shareholding: {e}")
+                        data['dii_holding'] = self._safe_float(value)
+                    elif 'government' in label:
+                        data['government_holding'] = self._safe_float(value)
+                    elif 'public' in label:
+                        data['public_holding'] = self._safe_float(value)
+            
+            except Exception as e:
+                logger.error(f"Error parsing shareholding table: {e}")
         
         return data
     
@@ -387,55 +376,49 @@ class FundamentalAnalyzer:
         if pl_section:
             table = pl_section.find('table')
             if table:
-                try:
-                    df = pd.read_html(str(table))[0]
-                    if len(df.columns) > 1:
-                        latest_col = df.columns[-1]
-                        prev_col = df.columns[-2] if len(df.columns) > 2 else None
+                df = self._table_to_df(table)
+                if df is not None and not df.empty and len(df.columns) > 1:
+                    latest_col = df.columns[-1]
+                    prev_col = df.columns[-2] if len(df.columns) > 2 else None
+                    
+                    for idx, row in df.iterrows():
+                        label = str(row.iloc[0]).lower()
+                        value = row[latest_col]
                         
-                        for idx, row in df.iterrows():
-                            label = str(row.iloc[0]).lower()
-                            value = row[latest_col]
-                            
-                            if pd.isna(value):
-                                continue
-                            
-                            if 'sales' in label and 'growth' not in label:
-                                data['revenue'] = float(value)
-                                if prev_col and pd.notna(row[prev_col]):
-                                    data['revenue_prev'] = float(row[prev_col])
-                            elif 'net profit' in label:
-                                data['net_profit'] = float(value)
-                            elif 'operating profit' in label:
-                                data['operating_profit'] = float(value)
-                except Exception as e:
-                    logger.error(f"Error parsing P&L: {e}")
+                        if 'sales' in label and 'growth' not in label:
+                            data['revenue'] = self._safe_float(value)
+                            if prev_col is not None:
+                                data['revenue_prev'] = self._safe_float(row[prev_col])
+                        elif 'net profit' in label:
+                            data['net_profit'] = self._safe_float(value)
+                        elif 'operating profit' in label:
+                            data['operating_profit'] = self._safe_float(value)
+                        elif 'opm' in label:
+                            data['operating_margin'] = self._safe_float(value)
+                        elif 'eps' in label:
+                            data['eps'] = self._safe_float(value)
+                        elif 'dividend payout' in label:
+                            data['payout_ratio'] = self._safe_float(value)
         
         # Balance Sheet section
         bs_section = soup.find('section', {'id': 'balance-sheet'})
         if bs_section:
             table = bs_section.find('table')
             if table:
-                try:
-                    df = pd.read_html(str(table))[0]
-                    if len(df.columns) > 1:
-                        latest_col = df.columns[-1]
+                df = self._table_to_df(table)
+                if df is not None and not df.empty and len(df.columns) > 1:
+                    latest_col = df.columns[-1]
+                    
+                    for idx, row in df.iterrows():
+                        label = str(row.iloc[0]).lower()
+                        value = row[latest_col]
                         
-                        for idx, row in df.iterrows():
-                            label = str(row.iloc[0]).lower()
-                            value = row[latest_col]
-                            
-                            if pd.isna(value):
-                                continue
-                            
-                            if 'borrowings' in label or 'debt' in label:
-                                data['total_debt'] = float(value)
-                            elif 'reserves' in label:
-                                data['reserves'] = float(value)
-                            elif 'total liabilities' in label:
-                                data['total_liabilities'] = float(value)
-                except Exception as e:
-                    logger.error(f"Error parsing Balance Sheet: {e}")
+                        if 'borrowings' in label:
+                            data['total_debt'] = self._safe_float(value)
+                        elif 'reserves' in label:
+                            data['reserves'] = self._safe_float(value)
+                        elif 'equity capital' in label:
+                            data['equity_capital'] = self._safe_float(value)
         
         return data
     
