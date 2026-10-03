@@ -5,7 +5,7 @@ This is the main orchestrator for stock analysis.
 import json
 import sqlite3
 from typing import Optional, Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.data.price_fetcher import PriceFetcher
 from src.data.symbol_mapper import SymbolMapper
@@ -77,7 +77,7 @@ class StockAnalysisPipeline:
         logger.info(f"Analyzing {symbol}")
         logger.info(f"{'='*50}")
         
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         
         # Validate symbol
         try:
@@ -197,7 +197,7 @@ class StockAnalysisPipeline:
                     result["llm_analysis"] = None
             
             # Processing time
-            result["processing_time_seconds"] = (datetime.utcnow() - start_time).total_seconds()
+            result["processing_time_seconds"] = (datetime.now(timezone.utc) - start_time).total_seconds()
             
             # Save to database
             self._save_result(result)

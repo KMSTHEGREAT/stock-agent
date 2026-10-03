@@ -382,10 +382,9 @@ You MUST respond with ONLY this JSON (no other text):
         return None
     
     def _build_prompt(self, symbol, company_name, technical, tech_scores,
-                     fundamental, fund_scores, news_context) -> str:
-        """Build analysis prompt with explicit JSON requirement."""
+                    fundamental, fund_scores, news_context) -> str:
         
-        # Safely get values
+        # Get actual values with proper defaults
         current_price = getattr(technical, 'current_price', 0) if technical else 0
         rsi = getattr(technical, 'rsi', 50) if technical else 50
         trend = getattr(technical, 'trend', None)
@@ -398,19 +397,29 @@ You MUST respond with ONLY this JSON (no other text):
         tech_score = tech_scores.get('total', 50)
         fund_score = fund_scores.get('total', 50)
         
-        prompt = f"""Analyze {symbol} ({company_name}) for Indian stock market.
+        # Build news context properly
+        if news_context and news_context.strip() and news_context != "None":
+            news_section = f"Recent News Summary: {news_context[:150]}"
+        else:
+            news_section = "No recent news data available."
+        
+        prompt = f"""STOCK ANALYSIS: {symbol} ({company_name})
 
-TECHNICAL: Score {tech_score}/100, Price ₹{current_price}, RSI {rsi}, Trend: {trend_str}
-FUNDAMENTAL: Score {fund_score}/100, P/E: {pe or 'N/A'}, ROCE: {roce or 'N/A'}%, Promoter: {promoter or 'N/A'}%
-NEWS: {news_context[:100] if news_context else 'None'}
+    DATA PROVIDED:
+    - Technical Score: {tech_score}/100
+    - Current Price: ₹{current_price}
+    - RSI: {rsi} ({'oversold' if rsi < 30 else 'overbought' if rsi > 70 else 'neutral'})
+    - Trend: {trend_str}
+    - Fundamental Score: {fund_score}/100
+    - P/E Ratio: {pe if pe else 'not available'}
+    - ROCE: {roce if roce else 'not available'}%
+    - Promoter Holding: {promoter if promoter else 'not available'}%
+    - {news_section}
 
-RESPOND WITH ONLY THIS JSON (no other text):
-{{
-  "analysis_summary": "Your 2-3 sentence analysis here",
-  "key_risks": ["risk 1", "risk 2", "risk 3"],
-  "key_catalysts": ["catalyst 1", "catalyst 2"],
-  "confidence_level": 0.5
-}}"""
+    TASK: Based on the data above, analyze {symbol} for investment.
+
+    Provide your analysis as JSON:
+    {{"analysis_summary": "2-3 sentences analyzing the stock based on the data", "key_risks": ["specific risk 1", "risk 2"], "key_catalysts": ["specific catalyst 1", "catalyst 2"], "confidence_level": 0.6}}"""
         
         return prompt
     

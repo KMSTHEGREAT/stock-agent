@@ -5,7 +5,7 @@ Reduces external API calls and speeds up repeated analyses.
 import sqlite3
 import json
 import pickle
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from pathlib import Path
 
@@ -69,7 +69,7 @@ class DataCache:
             
             # Check expiry
             expires_at = datetime.fromisoformat(row["expires_at"])
-            if datetime.utcnow() > expires_at:
+            if datetime.now(timezone.utc) > expires_at:
                 # Cache expired, remove it
                 self._remove(key)
                 return None
@@ -77,7 +77,7 @@ class DataCache:
             # Override TTL if specified
             if max_age_hours is not None:
                 created_at = datetime.fromisoformat(row["created_at"])
-                if datetime.utcnow() > created_at + timedelta(hours=max_age_hours):
+                if datetime.now(timezone.utc) > created_at + timedelta(hours=max_age_hours):
                     self._remove(key)
                     return None
             
@@ -109,14 +109,14 @@ class DataCache:
             else:
                 serialized = pickle.dumps(value)
             
-            expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
+            expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
             
             conn = sqlite3.connect(self.db_path)
             conn.execute("""
                 INSERT OR REPLACE INTO cache (key, value, data_type, created_at, expires_at)
                 VALUES (?, ?, ?, ?, ?)
             """, (key, serialized, data_type, 
-                  datetime.utcnow().isoformat(),
+                  datetime.now(timezone.utc).isoformat(),
                   expires_at.isoformat()))
             conn.commit()
             conn.close()
@@ -139,7 +139,7 @@ class DataCache:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.execute(
             "DELETE FROM cache WHERE expires_at < ?",
-            (datetime.utcnow().isoformat(),)
+            (datetime.now(timezone.utc).isoformat(),)
         )
         removed = cursor.rowcount
         conn.commit()
@@ -161,7 +161,7 @@ class DataCache:
         total = conn.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
         expired = conn.execute(
             "SELECT COUNT(*) FROM cache WHERE expires_at < ?",
-            (datetime.utcnow().isoformat(),)
+            (datetime.now(timezone.utc).isoformat(),)
         ).fetchone()[0]
         conn.close()
         

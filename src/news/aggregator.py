@@ -151,7 +151,7 @@ class IndianNewsAggregator:
     def _search_duckduckgo(self, symbol: str) -> List[Dict]:
         """Search DuckDuckGo for recent news."""
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
             
             results = []
             with DDGS() as ddgs:

@@ -1,8 +1,9 @@
 """
 CLI interface for the stock analysis agent.
 """
+import warnings
+warnings.filterwarnings("ignore", message=".*unclosed.*")
 from typing import Dict, List
-
 import click
 import json
 import sys
