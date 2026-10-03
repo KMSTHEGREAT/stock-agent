@@ -8,10 +8,10 @@ import re
 import ollama
 from typing import Optional, Dict, List
 
-from src.schemas.stock_analysis import (
+from v1.schemas.stock_analysis import (
     TechnicalMetrics, FundamentalMetrics, MarketContext
 )
-from src.utils.logger import setup_logger
+from v1.utils.logger import setup_logger
 from config.settings import LLM
 
 logger = setup_logger(__name__)

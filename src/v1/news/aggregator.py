@@ -7,8 +7,8 @@ import requests
 from typing import List, Dict, Optional
 from datetime import datetime
 
-from src.data.cache import DataCache
-from src.utils.logger import setup_logger
+from v1.data.cache import DataCache
+from v1.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

@@ -68,7 +68,7 @@ if page == "📊 Dashboard":
     
     with col2:
         try:
-            from src.analysis.market_context import MarketContextAnalyzer
+            from v1.analysis.market_context import MarketContextAnalyzer
             ctx = MarketContextAnalyzer().get_market_context()
             st.metric("Market", ctx.market_regime.upper())
         except:
@@ -481,7 +481,7 @@ elif page == "🌐 Market":
     st.title("🌐 Market Context")
     
     try:
-        from src.analysis.market_context import MarketContextAnalyzer
+        from v1.analysis.market_context import MarketContextAnalyzer
         
         analyzer = MarketContextAnalyzer()
         context = analyzer.get_market_context()

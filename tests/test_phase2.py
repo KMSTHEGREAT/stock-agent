@@ -14,8 +14,8 @@ def test_technical_analyzer():
     print("=" * 50)
     
     try:
-        from src.analysis.technical import TechnicalAnalyzer
-        from src.analysis.technical_scorer import TechnicalScorer
+        from v1.analysis.technical import TechnicalAnalyzer
+        from v1.analysis.technical_scorer import TechnicalScorer
         
         analyzer = TechnicalAnalyzer()
         scorer = TechnicalScorer()
@@ -69,8 +69,8 @@ def test_fundamental_analyzer():
     print("=" * 50)
     
     try:
-        from src.analysis.fundamental import FundamentalAnalyzer
-        from src.analysis.fundamental_scorer import FundamentalScorer
+        from v1.analysis.fundamental import FundamentalAnalyzer
+        from v1.analysis.fundamental_scorer import FundamentalScorer
         
         analyzer = FundamentalAnalyzer()
         scorer = FundamentalScorer()
@@ -130,8 +130,8 @@ def test_multiple_stocks():
     print("=" * 50)
     
     try:
-        from src.analysis.technical import TechnicalAnalyzer
-        from src.analysis.technical_scorer import TechnicalScorer
+        from v1.analysis.technical import TechnicalAnalyzer
+        from v1.analysis.technical_scorer import TechnicalScorer
         
         analyzer = TechnicalAnalyzer()
         scorer = TechnicalScorer()

@@ -7,21 +7,21 @@ import sqlite3
 from typing import Optional, Dict, List
 from datetime import datetime, timezone
 
-from src.data.price_fetcher import PriceFetcher
-from src.data.symbol_mapper import SymbolMapper
-from src.data.cache import DataCache
+from v1.data.price_fetcher import PriceFetcher
+from v1.data.symbol_mapper import SymbolMapper
+from v1.data.cache import DataCache
 from src.analysis.technical import TechnicalAnalyzer
 from src.analysis.fundamental import FundamentalAnalyzer
 from src.analysis.market_context import MarketContextAnalyzer
 from src.analysis.technical_scorer import TechnicalScorer
 from src.analysis.fundamental_scorer import FundamentalScorer
-from src.news.aggregator import IndianNewsAggregator
-from src.news.sentiment import NewsSentimentScorer
+from v1.news.aggregator import IndianNewsAggregator
+from v1.news.sentiment import NewsSentimentScorer
 from src.scoring.engine import ScoringEngine
 from src.llm.synthesizer import LLMSynthesizer
 from src.recommendations.generator import RecommendationGenerator
-from src.schemas.stock_analysis import FundamentalMetrics
-from src.utils.logger import setup_logger
+from v1.schemas.stock_analysis import FundamentalMetrics
+from v1.utils.logger import setup_logger
 from config.settings import DATABASE
 
 logger = setup_logger(__name__)

@@ -237,7 +237,7 @@ def list_watchlist():
 @cli.command()
 def market():
     """Show market context."""
-    from src.analysis.market_context import MarketContextAnalyzer
+    from v1.analysis.market_context import MarketContextAnalyzer
     
     analyzer = MarketContextAnalyzer()
     context = analyzer.get_market_context()
@@ -297,7 +297,7 @@ def history(symbol, limit):
 @cli.command()
 def clear_cache():
     """Clear all cached data."""
-    from src.data.cache import DataCache
+    from v1.data.cache import DataCache
     cache = DataCache()
     cache.clear_all()
     click.echo("✓ Cache cleared")

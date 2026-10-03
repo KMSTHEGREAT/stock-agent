@@ -8,8 +8,8 @@ from typing import Optional
 from pathlib import Path
 
 from config.settings import DATA_DIR
-from src.utils.validation import validate_nse_symbol, validate_bse_code
-from src.utils.logger import setup_logger
+from v1.utils.validation import validate_nse_symbol, validate_bse_code
+from v1.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

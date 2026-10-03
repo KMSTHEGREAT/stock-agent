@@ -145,8 +145,8 @@ def test_database():
     print("\nTesting database...")
     
     try:
-        from src.data.cache import DataCache
-        from src.data.symbol_mapper import SymbolMapper
+        from v1.data.cache import DataCache
+        from v1.data.symbol_mapper import SymbolMapper
         
         # Test cache
         cache = DataCache()
@@ -205,7 +205,7 @@ def test_price_fetcher():
     print("\nTesting PriceFetcher...")
     
     try:
-        from src.data.price_fetcher import PriceFetcher
+        from v1.data.price_fetcher import PriceFetcher
         
         fetcher = PriceFetcher()
         

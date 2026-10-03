@@ -3,10 +3,10 @@ Recommendation generator that computes entry/exit prices and risk levels.
 All price levels are computed deterministically from technical metrics.
 """
 from typing import Optional, Dict
-from src.schemas.stock_analysis import (
+from v1.schemas.stock_analysis import (
     StockAnalysis, TechnicalMetrics, Recommendation
 )
-from src.utils.logger import setup_logger
+from v1.utils.logger import setup_logger
 from config.settings import RISK
 
 logger = setup_logger(__name__)

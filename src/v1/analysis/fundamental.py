@@ -12,12 +12,12 @@ from typing import Optional, Dict
 import re
 import time
 
-from src.schemas.stock_analysis import (
+from v1.schemas.stock_analysis import (
     FundamentalMetrics, MarketCapCategory
 )
-from src.data.cache import DataCache
-from src.data.price_fetcher import PriceFetcher
-from src.utils.logger import setup_logger
+from v1.data.cache import DataCache
+from v1.data.price_fetcher import PriceFetcher
+from v1.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

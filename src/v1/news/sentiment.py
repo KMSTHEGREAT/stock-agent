@@ -6,8 +6,8 @@ import re
 import ollama
 from typing import List, Dict, Optional
 
-from src.news.aggregator import IndianNewsAggregator
-from src.utils.logger import setup_logger
+from v1.news.aggregator import IndianNewsAggregator
+from v1.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

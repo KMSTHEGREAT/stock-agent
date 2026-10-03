@@ -111,12 +111,12 @@ def test_llm_synthesis():
     print("=" * 50)
     
     try:
-        from src.analysis.technical import TechnicalAnalyzer
-        from src.analysis.fundamental import FundamentalAnalyzer
-        from src.analysis.technical_scorer import TechnicalScorer
-        from src.analysis.fundamental_scorer import FundamentalScorer
-        from src.llm.synthesizer import LLMSynthesizer
-        from src.schemas.stock_analysis import FundamentalMetrics
+        from v1.analysis.technical import TechnicalAnalyzer
+        from v1.analysis.fundamental import FundamentalAnalyzer
+        from v1.analysis.technical_scorer import TechnicalScorer
+        from v1.analysis.fundamental_scorer import FundamentalScorer
+        from v1.llm.synthesizer import LLMSynthesizer
+        from v1.schemas.stock_analysis import FundamentalMetrics
         
         tech_analyzer = TechnicalAnalyzer()
         fund_analyzer = FundamentalAnalyzer()
@@ -197,9 +197,9 @@ def test_scoring_engine():
     print("=" * 50)
     
     try:
-        from src.analysis.technical import TechnicalAnalyzer
-        from src.analysis.fundamental import FundamentalAnalyzer
-        from src.scoring.engine import ScoringEngine
+        from v1.analysis.technical import TechnicalAnalyzer
+        from v1.analysis.fundamental import FundamentalAnalyzer
+        from v1.scoring.engine import ScoringEngine
         
         tech_analyzer = TechnicalAnalyzer()
         fund_analyzer = FundamentalAnalyzer()
@@ -249,9 +249,9 @@ def test_recommendation_generator():
     print("=" * 50)
     
     try:
-        from src.analysis.technical import TechnicalAnalyzer
-        from src.recommendations.generator import RecommendationGenerator
-        from src.schemas.stock_analysis import Recommendation
+        from v1.analysis.technical import TechnicalAnalyzer
+        from v1.recommendations.generator import RecommendationGenerator
+        from v1.schemas.stock_analysis import Recommendation
         
         tech_analyzer = TechnicalAnalyzer()
         rec_gen = RecommendationGenerator()
