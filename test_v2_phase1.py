@@ -17,9 +17,9 @@ def test_searxng_connection():
     print("=" * 50)
     
     try:
-        from src.v2.search.searxng import SearXNGSearchSync
+        from src.v2.search.searxng import SearXNGSearch
         
-        search = SearXNGSearchSync()
+        search = SearXNGSearch()
         
         # Test basic search
         results = search.search("RELIANCE stock", categories="general", max_results=5)
@@ -49,9 +49,9 @@ def test_searxng_news():
     print("=" * 50)
     
     try:
-        from src.v2.search.searxng import SearXNGSearchSync
+        from src.v2.search.searxng import SearXNGSearch
         
-        search = SearXNGSearchSync()
+        search = SearXNGSearch()
         
         # Test news search
         results = search.search_stock_news("RELIANCE", "Reliance Industries")
@@ -186,9 +186,9 @@ def test_searxng_vs_ddgs():
     print("=" * 50)
     
     try:
-        from src.v2.search.searxng import SearXNGSearchSync
+        from src.v2.search.searxng import SearXNGSearch
         
-        search = SearXNGSearchSync()
+        search = SearXNGSearch()
         start = time.time()
         
         # Search for stock news
