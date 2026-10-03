@@ -31,12 +31,12 @@ DATABASE = {
 
 # LLM Configuration
 LLM = {
-    "model": "qwen3:4b",
+    "model": "phi4-mini",  # Changed from qwen3:4b
     "base_url": "http://localhost:11434",
     "temperature": 0.3,
-    "max_tokens": 2000,  # Increased from 1000 - Qwen 3 needs room for thinking
+    "max_tokens": 1000,
     "num_ctx": 4096,
-    "timeout": 180,  # Increased timeout for thinking mode
+    "timeout": 180,
 }
 
 # API Keys (add to .env file)
@@ -69,6 +69,13 @@ MARKET = {
         "NIFTY Healthcare", "NIFTY Consumer Durables", "NIFTY Oil & Gas",
     ],
 }
+
+# SearXNG
+SEARXNG = {
+    "base_url": "http://localhost:8888",
+    "timeout": 15,
+}
+
 
 # Scoring Weweights (India-adjusted)
 SCORING = {
