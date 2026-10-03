@@ -12,8 +12,8 @@ try:
     from src.v1.analysis.fundamental import FundamentalAnalyzer
     from src.v1.analysis.fundamental_scorer import FundamentalScorer
 except ImportError:
-    from analysis.fundamental import FundamentalAnalyzer
-    from analysis.fundamental_scorer import FundamentalScorer
+    from analysis.fundamental import FundamentalAnalyzer # type: ignore
+    from analysis.fundamental_scorer import FundamentalScorer # type: ignore
 
 logger = logging.getLogger(__name__)
 
