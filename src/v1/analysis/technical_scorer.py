@@ -3,8 +3,8 @@ Technical analysis scoring engine.
 Converts technical metrics into a 0-100 score deterministically.
 """
 from typing import Dict
-from v1.schemas.stock_analysis import TechnicalMetrics, TrendDirection
-from v1.utils.logger import setup_logger
+from src.v1.schemas.stock_analysis import TechnicalMetrics, TrendDirection
+from src.v1.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

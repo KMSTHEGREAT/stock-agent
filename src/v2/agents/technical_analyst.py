@@ -5,7 +5,7 @@ Reuses V1's technical analysis engine but outputs structured data for LangGraph.
 import logging
 from datetime import datetime, timezone
 
-from src.v2.graph.state import TechnicalOutput, TrendDirection
+from src.v2.graph.state import TechnicalOutput
 from src.v1.analysis.technical import TechnicalAnalyzer
 from src.v1.analysis.technical_scorer import TechnicalScorer
 

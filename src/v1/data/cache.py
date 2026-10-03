@@ -10,7 +10,7 @@ from typing import Any, Optional
 from pathlib import Path
 
 from config.settings import CACHE_DIR, DATABASE
-from v1.utils.logger import setup_logger
+from src.v1.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

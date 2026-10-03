@@ -7,9 +7,9 @@ import pandas as pd
 from typing import Dict, Optional
 from datetime import datetime
 
-from v1.schemas.stock_analysis import MarketContext, TrendDirection
-from v1.data.cache import DataCache
-from v1.utils.logger import setup_logger
+from src.v1.schemas.stock_analysis import MarketContext, TrendDirection
+from src.v1.data.cache import DataCache
+from src.v1.utils.logger import setup_logger
 from config.settings import MARKET
 
 logger = setup_logger(__name__)

@@ -5,13 +5,13 @@ Integrates technical, fundamental, news, and macro scores.
 from typing import Dict, Optional
 from datetime import datetime
 
-from v1.schemas.stock_analysis import (
+from src.v1.schemas.stock_analysis import (
     StockAnalysis, TechnicalMetrics, FundamentalMetrics,
     Recommendation, RiskFlags
 )
-from v1.analysis.technical_scorer import TechnicalScorer
-from v1.analysis.fundamental_scorer import FundamentalScorer
-from v1.utils.logger import setup_logger
+from src.v1.analysis.technical_scorer import TechnicalScorer
+from src.v1.analysis.fundamental_scorer import FundamentalScorer
+from src.v1.utils.logger import setup_logger
 from config.settings import SCORING, RISK
 
 logger = setup_logger(__name__)

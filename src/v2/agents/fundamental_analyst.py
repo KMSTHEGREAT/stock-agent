@@ -6,8 +6,14 @@ import logging
 from datetime import datetime, timezone
 
 from src.v2.graph.state import FundamentalOutput
-from src.v1.analysis.fundamental import FundamentalAnalyzer
-from src.v1.analysis.fundamental_scorer import FundamentalScorer
+
+# Import V1 modules with fallback
+try:
+    from src.v1.analysis.fundamental import FundamentalAnalyzer
+    from src.v1.analysis.fundamental_scorer import FundamentalScorer
+except ImportError:
+    from analysis.fundamental import FundamentalAnalyzer
+    from analysis.fundamental_scorer import FundamentalScorer
 
 logger = logging.getLogger(__name__)
 

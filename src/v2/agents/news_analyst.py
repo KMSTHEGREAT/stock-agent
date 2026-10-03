@@ -38,11 +38,11 @@ def news_analyst_node(state: dict) -> dict:
         news_items = []
         for item in news_items_raw[:10]:  # Limit to 10
             news_items.append(NewsItem(
-                title=item.get("title", ""),
-                source=item.get("source", "unknown"),
-                summary=item.get("summary", "")[:200],
-                url=item.get("url", ""),
-                published=item.get("published", ""),
+                title=item.get("title") or "",
+                source=item.get("source") or "unknown",
+                summary=(item.get("summary") or "")[:200],
+                url=item.get("url") or "",
+                published=item.get("published") or "",
             ))
         
         # Score sentiment using LLM

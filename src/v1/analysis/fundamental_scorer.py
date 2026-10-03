@@ -3,8 +3,8 @@ Fundamental analysis scoring engine.
 Scores based on valuation, growth, profitability, and India-specific factors.
 """
 from typing import Dict
-from v1.schemas.stock_analysis import FundamentalMetrics, MarketCapCategory
-from v1.utils.logger import setup_logger
+from src.v1.schemas.stock_analysis import FundamentalMetrics, MarketCapCategory
+from src.v1.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 

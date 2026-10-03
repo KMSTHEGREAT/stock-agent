@@ -8,9 +8,9 @@ import numpy as np
 from typing import Optional, Dict
 from datetime import datetime, timedelta
 
-from v1.data.price_fetcher import PriceFetcher
-from v1.schemas.stock_analysis import TechnicalMetrics, TrendDirection
-from v1.utils.logger import setup_logger
+from src.v1.data.price_fetcher import PriceFetcher
+from src.v1.schemas.stock_analysis import TechnicalMetrics, TrendDirection
+from src.v1.utils.logger import setup_logger
 from config.settings import TECHNICAL, MARKET
 
 logger = setup_logger(__name__)

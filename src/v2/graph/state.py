@@ -7,6 +7,11 @@ from pydantic import BaseModel, Field
 from enum import Enum
 import operator
 
+class TrendDirection(str, Enum):
+    """Technical trend direction."""
+    UP = "up"
+    DOWN = "down"
+    SIDEWAYS = "sideways"
 
 class Rating(str, Enum):
     """Five-tier rating system (TradingAgents style)."""
