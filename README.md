@@ -1,18 +1,22 @@
-Indian Stock Analysis Agent
+# Indian Stock Analysis Agent
 
-A personal stock analysis tool for Indian markets (NSE/BSE) that combinesdeterministic quantitative scoring with LLM-powered qualitative analysis.
-Features
+A personal stock analysis tool for Indian markets (NSE/BSE) that combines deterministic quantitative scoring with LLM-powered qualitative analysis.
 
-    Technical Analysis: RSI, MACD, Bollinger Bands, ATR, Moving Averages
-    Fundamental Analysis: P/E, ROCE, Promoter Holding, Pledged Shares
-    News Sentiment: RSS feeds + DuckDuckGo + LLM scoring
-    LLM Analysis: Qwen 3 4B for qualitative insights (runs locally)
-    Scoring: 0-100 composite score with India-specific weights
-    Recommendations: Entry/Exit/Stop-loss prices in INR
-    Market Context: Nifty/Sensex/VIX regime detection
+## Features
 
-Architecture
+* **Technical Analysis**: RSI, MACD, Bollinger Bands, ATR, Moving Averages
+* **Fundamental Analysis**: P/E, ROCE, Promoter Holding, Pledged Shares
+* **News Sentiment**: RSS feeds + DuckDuckGo + LLM scoring
+* **LLM Analysis**: Qwen 3 4B for qualitative insights (runs locally)
+* **Scoring**: 0-100 composite score with India-specific weights
+* **Recommendations**: Entry/Exit/Stop-loss prices in INR
+* **Market Context**: Nifty/Sensex/VIX regime detection
 
+---
+
+## Architecture
+
+```text
 ┌─────────────────────────────────────────────────┐
 │                  User Interface                  │
 │         (Streamlit Web UI / CLI)                 │
@@ -33,150 +37,39 @@ Architecture
 ├─────────────────────────────────────────────────┤
 │           SQLite (Cache + History)               │
 └─────────────────────────────────────────────────┘
-text
- 
-  
- 
- 
+```
+
+---
 
 ## Quick Start
 
 ### Prerequisites
-- Python 3.11+
-- Ollama with Qwen 3 4B model
-- 6GB VRAM (for LLM), 16GB RAM
+* Python 3.11+
+* Ollama with Qwen 3 4B model installed
+* Minimum Hardware: 6GB VRAM (for LLM), 16GB RAM
 
 ### Installation
 
 ```bash
-# 1. Install Ollama and model
+# 1. Install Ollama and pull the model
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen3:4b
 
 # 2. Setup Python environment
 python -m venv venv
-source venv/bin activate
+source venv/bin/activate
 pip install -r requirements.txt
-
-# 3. Run tests
-python test_setup.py
-
-# 4. Start the web UI
-streamlit run app.py
- 
- 
-Usage
-bash
- 
-  
- 
- 
-# Web UI (recommended)
-streamlit run app.py
-
-# CLI
-python main.py analyze RELIANCE
-python main.py analyze TCS --detailed
-python main.py watchlist RELIANCE TCS INFY
-python main.py market
-python main.py history
-
-# Watchlist management
-python main.py add RELIANCE
-python main.py list-watchlist
-python main.py remove RELIANCE
- 
- 
-Scoring System
-Component
-	
-Weight
-	
-Source
-Technical	30%	RSI, MACD, Bollinger, SMA/EMA
-Fundamental	35%	P/E, ROCE, Promoter Holding, Growth
-News Sentiment	20%	LLM + keyword analysis
-Market Context	15%	Nifty/Sensex trend, VIX
- 
- 
-India-Specific Adjustments
-
-     Promoter Holding: >50% is positive (skin in the game)
-     Pledged Shares: Major red flag, heavily penalized
-     ROCE: More relevant than ROE for Indian companies
-     FII/DII Flows: Tracked as market context
-     Circuit Limits: 18%+ daily moves flagged
-
-Data Sources (All Free)
-Source
-	
-Usage
-	
-Rate Limit
-yfinance (.NS)	Price history, basic fundamentals	Unlimited (unofficial)
-Screener.in	Detailed fundamentals, shareholding	Manual/scraping
-RSS feeds	News from Moneycontrol, ET, etc.	Free
-DuckDuckGo	Additional news search	Free
-NSE indices	Nifty/Sensex for market context	Free
- 
- 
-Disclaimer
-
-⚠️ This tool is for personal research and educational purposes only.
-It is NOT investment advice. Consult a SEBI Registered Investment Advisor
-before making investment decisions. Past performance does not guarantee
-future results.
-Tech Stack
-
-     Language: Python 3.11+
-     LLM: Qwen 3 4B (via Ollama, runs locally on 6GB VRAM)
-     Framework: Streamlit (UI), Click (CLI)
-     Data: yfinance, BeautifulSoup, feedparser
-     Analysis: pandas-ta, pandas, numpy
-     Database: SQLite
-     Validation: Pydantic
-
-Project Structure
-text
- 
-  
- 
- 
-stock-agent/
-├── src/
-│   ├── data/          # Data fetching and caching
-│   ├── analysis/      # Technical & fundamental analysis
-│   ├── llm/           # LLM synthesis (Qwen 3 4B)
-│   ├── news/          # News aggregation & sentiment
-│   ├── scoring/       # Scoring engine
-│   ├── recommendations/ # Entry/exit price generation
-│   ├── schemas/       # Pydantic models
-│   └── utils/         # Logging, validation
-├── config/            # Settings
-├── tests/             # Test files
-├── app.py             # Streamlit UI
-├── main.py            # CLI
-└── README.md
- 
- 
-text
- 
-  
- 
- 
-
----
-
-## Final Setup Instructions
-
-```bash
-# 1. Make scripts executable
-chmod +x main.py
-
-# 2. Install streamlit if not already
 pip install streamlit plotly
 
-# 3. Run final test
+# 3. Make CLI tool executable
+chmod +x main.py
+```
+
+### Verification & Testing
+
+Run the final validation pipeline test to ensure components are wired correctly:
+
+```bash
 python -c "
 import sys
 sys.path.insert(0, '.')
@@ -193,6 +86,101 @@ if result:
 else:
     print('✗ SYSTEM FAILED')
 "
+```
 
-# 4. Start using
+---
+
+## Usage
+
+### Web UI (Recommended)
+```bash
 streamlit run app.py
+```
+
+### CLI Operations
+```bash
+# Analyze stocks
+python main.py analyze RELIANCE
+python main.py analyze TCS --detailed
+
+# Watchlist management
+python main.py watchlist RELIANCE TCS INFY
+python main.py add RELIANCE
+python main.py list-watchlist
+python main.py remove RELIANCE
+
+# Market status and analytics history
+python main.py market
+python main.py history
+```
+
+---
+
+## Analysis Matrix
+
+### Scoring System
+
+| Component | Weight | Target Metrics / Source |
+| :--- | :---: | :--- |
+| **Technical** | 30% | RSI, MACD, Bollinger Bands, SMA/EMA |
+| **Fundamental** | 35% | P/E, ROCE, Promoter Holding, Revenue/Profit Growth |
+| **News Sentiment** | 20% | LLM synthesis + keyword matching analysis |
+| **Market Context** | 15% | Nifty/Sensex overall momentum trend, India VIX |
+
+### India-Specific Rule Modifiers
+* **Promoter Holding**: Levels >50% are scored positively (verifies skin in the game).
+* **Pledged Shares**: Monitored as a major structural red flag and heavily penalized.
+* **ROCE**: Weighted higher than ROE due to its historical reliability for Indian corporate capital structures.
+* **FII/DII Flows**: Evaluated actively within the macro market context layers.
+* **Circuit Limits**: Intraday moves nearing or exceeding 18% trigger sudden volatility flags.
+
+---
+
+## Data Sources (100% Free Tier)
+
+| Source | Usage Context | Rate Limit Status |
+| :--- | :--- | :--- |
+| **yfinance (`.NS`)** | Structural price history, standard baseline fundamentals | Unlimited (via public API endpoints) |
+| **Screener.in** | Granular Indian fundamentals, historical shareholding data | Manual extraction / web scraping |
+| **RSS Feeds** | Real-time news extraction from Moneycontrol, Economic Times, etc. | Unrestricted / Free |
+| **DuckDuckGo** | Dynamic search querying for localized auxiliary news events | Unrestricted / Free |
+| **NSE Indices** | Nifty 50, BSE Sensex benchmarks, and volatility tracking | Unrestricted / Free |
+
+---
+
+## Tech Stack
+
+* **Language**: Python 3.11+
+* **Local LLM Engine**: Qwen 3 4B via Ollama framework
+* **Application Interfaces**: Streamlit (Dashboard), Click (Terminal Commands)
+* **Data Scrapers**: yfinance, BeautifulSoup4, feedparser
+* **Processing Engines**: pandas, pandas-ta, numpy
+* **Data Architecture**: SQLite (Caching, History Logs), Pydantic (Data Serialization)
+
+---
+
+## Project Structure
+
+```text
+stock-agent/
+├── config/              # Application and API configuration settings
+├── src/
+│   ├── data/            # Data orchestration, ingestion & cache layers
+│   ├── analysis/        # Technical analysis indicators & fundamental processing
+│   ├── llm/             # Prompt engineering and local Qwen text synthesis
+│   ├── news/            # RSS feed fetching & DuckDuckGo query scraping
+│   ├── scoring/         # Core weighted processing metrics
+│   ├── recommendations/ # Dynamic target, stop-loss and limit entry logic
+│   ├── schemas/         # Strict structural verification via Pydantic
+│   └── utils/           # Structural validation, execution logs, file parsers
+├── tests/               # Unit diagnostics and pipeline system checks
+├── app.py               # Streamlit interactive UI layout
+├── main.py              # Click command-line utility entrypoint
+└── README.md
+```
+
+---
+
+## Disclaimer
+
+⚠️ **This software application is developed exclusively for educational and personal research purposes.** It is not structured to provide professional investment advice. Always execute independent verification and consult with a **SEBI Registered Investment Advisor** prior to deploying capital into active market environments. Past performance tracking features do not offer guarantees regarding future strategic allocations.
