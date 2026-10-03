@@ -61,29 +61,26 @@ class StockAnalysisPipeline:
         self._init_db()
     
     def analyze_stock(self, symbol: str, include_news: bool = True,
-                     include_llm: bool = True) -> Optional[Dict]:
-        """
-        Complete analysis for a single stock.
+                 include_llm: bool = True) -> Optional[Dict]:
+        """Analyze a stock. Accepts NSE symbols or BSE codes."""
         
-        Args:
-            symbol: NSE symbol (e.g., "RELIANCE")
-            include_news: Fetch and analyze news
-            include_llm: Use LLM for qualitative analysis
-        
-        Returns:
-            Complete analysis result dictionary
-        """
-        logger.info(f"{'='*50}")
-        logger.info(f"Analyzing {symbol}")
-        logger.info(f"{'='*50}")
-        
-        start_time = datetime.now(timezone.utc)
-        
-        # Validate symbol
+        # Resolve to NSE if BSE code provided
         try:
+            # First validate
             symbol_info = self.symbol_mapper.validate_symbol(symbol.upper())
-            symbol = symbol_info["nse_symbol"]
+            
+            # If it's a BSE code, resolve to NSE
+            if symbol_info.get("bse_code") == symbol.upper() and not symbol_info.get("nse_symbol"):
+                # This is a BSE-only entry, try to resolve
+                nse_symbol = self.symbol_mapper.resolve_to_nse(symbol.upper())
+                symbol = nse_symbol
+                symbol_info = self.symbol_mapper.validate_symbol(nse_symbol)
+            elif symbol_info.get("nse_symbol"):
+                symbol = symbol_info["nse_symbol"]
+            
             company_name = symbol_info.get("company_name") or symbol
+            start_time = datetime.now(timezone.utc)
+            
         except ValueError as e:
             logger.error(f"Invalid symbol: {e}")
             return None

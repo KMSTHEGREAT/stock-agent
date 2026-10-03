@@ -198,3 +198,77 @@ class SymbolMapper:
         ))
         conn.commit()
         conn.close()
+
+    def resolve_to_nse(self, symbol: str) -> str:
+        """
+        Resolve any symbol (NSE or BSE) to its NSE equivalent.
+        Most Indian stocks are dual-listed, so BSE codes can map to NSE.
+        """
+        # If it's already an NSE symbol, return as-is
+        if validate_nse_symbol(symbol):
+            return symbol
+        
+        # If it's a BSE code, look up the NSE equivalent
+        if validate_bse_code(symbol):
+            info = self.get_symbol_info(symbol)
+            if info and info.get("nse_symbol"):
+                return info["nse_symbol"]
+            
+            # If not in database, try to fetch from Yahoo
+            nse_symbol = self._lookup_bse_to_nse(symbol)
+            if nse_symbol:
+                return nse_symbol
+            
+            raise ValueError(f"BSE code {symbol} has no NSE equivalent found")
+        
+        raise ValueError(f"Invalid symbol: {symbol}")
+
+    def _lookup_bse_to_nse(self, bse_code: str) -> Optional[str]:
+        """Look up NSE symbol for a BSE code using Yahoo Finance."""
+        try:
+            import yfinance as yf
+            
+            # Fetch BSE stock info
+            yahoo_symbol = f"{bse_code}.BO"
+            ticker = yf.Ticker(yahoo_symbol)
+            info = ticker.info
+            
+            # Yahoo sometimes provides the NSE symbol in the info
+            # or we can match by ISIN
+            isin = info.get("isin")
+            if isin:
+                return self._find_nse_by_isin(isin)
+            
+            # Try matching by company name
+            company_name = info.get("longName") or info.get("shortName")
+            if company_name:
+                return self._find_nse_by_name(company_name)
+            
+            return None
+            
+        except Exception:
+            return None
+
+    def _find_nse_by_isin(self, isin: str) -> Optional[str]:
+        """Find NSE symbol by ISIN in database."""
+        conn = sqlite3.connect(self.db_path)
+        row = conn.execute(
+            "SELECT nse_symbol FROM symbols WHERE isin = ?", (isin,)
+        ).fetchone()
+        conn.close()
+        return row[0] if row else None
+
+    def _find_nse_by_name(self, name: str) -> Optional[str]:
+        """Find NSE symbol by company name (fuzzy match)."""
+        conn = sqlite3.connect(self.db_path)
+        rows = conn.execute(
+            "SELECT nse_symbol, company_name FROM symbols WHERE company_name IS NOT NULL"
+        ).fetchall()
+        conn.close()
+        
+        name_lower = name.lower()
+        for nse_sym, comp_name in rows:
+            if comp_name and comp_name.lower() in name_lower:
+                return nse_sym
+        
+        return None

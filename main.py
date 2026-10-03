@@ -138,7 +138,12 @@ def cli():
 @click.option('--no-llm', is_flag=True, help='Skip LLM analysis')
 @click.option('--json', 'as_json', is_flag=True, help='Output as JSON')
 def analyze(symbol, detailed, no_news, no_llm, as_json):
-    """Analyze a single stock."""
+    """Analyze a stock (NSE symbol or BSE code).
+    
+    Examples:
+        python main.py analyze RELIANCE     # NSE symbol
+        python main.py analyze 500325       # BSE code (maps to RELIANCE)
+    """
     pipeline = StockAnalysisPipeline()
     
     result = pipeline.analyze_stock(
