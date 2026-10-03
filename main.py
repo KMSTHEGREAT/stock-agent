@@ -1,6 +1,8 @@
 """
 CLI interface for the stock analysis agent.
 """
+from typing import Dict, List
+
 import click
 import json
 import sys
