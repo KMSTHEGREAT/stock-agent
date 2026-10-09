@@ -201,19 +201,12 @@ def _calculate_entry_price(tech, rating) -> float:
     price = tech.current_price
     
     if rating in (Rating.BUY, Rating.OVERWEIGHT):
-        # For buy ratings, suggest entry at or below current
-        if tech.support_level and tech.support_level < price:
-            # Enter near support
-            return round(max(tech.support_level, price * 0.97), 2)
-        else:
-            # Enter at slight discount to current
-            return round(price * 0.98, 2)
+        # Entry at or near current price for buy ratings
+        return round(price * 0.98, 2)  # 2% below current
     elif rating == Rating.HOLD:
-        # For hold, entry is at better price
-        return round(price * 0.94, 2)
+        return round(price * 0.94, 2)  # 6% below current
     else:
-        # For sell ratings, no entry recommended
-        return None
+        return None  # No entry for sell ratings
 
 
 def _calculate_target_price(tech, rating, risk) -> float:
@@ -222,37 +215,21 @@ def _calculate_target_price(tech, rating, risk) -> float:
         return None
     
     price = tech.current_price
+    atr = tech.atr or price * 0.02
     
-    if tech.atr:
-        atr = tech.atr
-    else:
-        atr = price * 0.02  # Default 2% ATR
+    # Multipliers by rating
+    multipliers = {
+        Rating.BUY: 3.0, Rating.OVERWEIGHT: 2.5,
+        Rating.HOLD: 2.0, Rating.UNDERWEIGHT: 1.5,
+        Rating.SELL: 1.0
+    }
+    multiplier = multipliers.get(rating, 2.0)
     
-    if rating == Rating.BUY:
-        multiplier = 3.0
-    elif rating == Rating.OVERWEIGHT:
-        multiplier = 2.5
-    elif rating == Rating.HOLD:
-        multiplier = 2.0
-    else:
-        multiplier = 1.5
-    
-    # Reduce target if high risk
+    # Reduce target for high risk
     if risk and risk.risk_score > 60:
         multiplier *= 0.8
     
-    # Use resistance if it's within reach
-    if tech.resistance_level and rating in (Rating.BUY, Rating.OVERWEIGHT):
-        if tech.resistance_level > price:
-            # Target slightly above resistance
-            target = max(tech.resistance_level, price + atr * multiplier)
-        else:
-            target = price + atr * multiplier
-    else:
-        target = price + atr * multiplier
-    
-    return round(target, 2)
-
+    return round(price + atr * multiplier, 2)
 
 def _calculate_risk_reward(entry, target, stop) -> float:
     """Calculate risk/reward ratio."""

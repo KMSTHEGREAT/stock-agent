@@ -212,25 +212,24 @@ def _position_size_from_risk(risk_score: float) -> float:
 
 
 def _calculate_stop_loss(tech):
-    """Calculate suggested stop-loss from technical levels."""
+    """Calculate stop loss BELOW current price."""
     if not tech or not tech.current_price:
         return None
     
     price = tech.current_price
     
-    # Use ATR-based stop if available
     if tech.atr:
-        stop = price - (tech.atr * 1.5)  # 1.5x ATR below price
-        return round(stop, 2)
+        # 1.5x ATR below current price
+        stop = price - (tech.atr * 1.5)
+    elif tech.support_level and tech.support_level < price:
+        # 2% below support
+        stop = tech.support_level * 0.98
+    else:
+        # 7% below current price
+        stop = price * 0.93
     
-    # Use support level if available
-    if tech.support_level:
-        stop = tech.support_level * 0.98  # 2% below support
-        return round(stop, 2)
-    
-    # Default: 7% below current price
-    return round(price * 0.93, 2)
-
+    # Ensure stop is always below current price
+    return round(min(stop, price * 0.95), 2)
 
 def _collect_warnings(vol_risk, liq_risk, prom_risk, reg_risk,
                      fund, tech, debate) -> list:
