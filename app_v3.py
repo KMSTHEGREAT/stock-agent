@@ -1,0 +1,1026 @@
+"""
+V3 Stock Analysis Agent — Modern Dark UI with LLM Debate.
+Combines CFA-grade deterministic analysis with LLM-powered bull/bear debate.
+
+Run: streamlit run app_v3.py
+"""
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import json
+import sqlite3
+import time
+import sys
+import logging
+from pathlib import Path
+from datetime import datetime, timedelta
+
+# Page config MUST be first
+st.set_page_config(
+    page_title="Stock Agent V3",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+# ============ CUSTOM CSS ============
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    
+    .stApp {
+        background-color: #0e1117;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    section[data-testid="stSidebar"] {
+        background-color: #1a1f2b;
+        border-right: 1px solid #2d3748;
+    }
+    
+    .main .block-container {
+        padding-top: 2rem;
+        max-width: 1200px;
+    }
+    
+    h1 { color: #fafafa; font-weight: 800; letter-spacing: -0.5px; }
+    h2 { color: #e2e8f0; font-weight: 700; font-size: 1.5rem; margin-top: 1.5rem; }
+    h3 { color: #94a3b8; font-weight: 600; font-size: 1.1rem; }
+    
+    div[data-testid="stMetric"] {
+        background: linear-gradient(135deg, #1a1f2b 0%, #252b3b 100%);
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid #2d3748;
+    }
+    
+    div[data-testid="stMetric"] label { color: #64748b; font-size: 0.85rem; }
+    div[data-testid="stMetric"] div[data-testid="stMetricValue"] { color: #fafafa; font-weight: 700; }
+    
+    .rating-badge {
+        display: inline-block;
+        padding: 10px 32px;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 1.3em;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin: 10px 0;
+    }
+    
+    .rating-buy { background: linear-gradient(135deg, #059669, #10b981); color: white; }
+    .rating-overweight { background: linear-gradient(135deg, #059669, #34d399); color: white; }
+    .rating-hold { background: linear-gradient(135deg, #d97706, #f59e0b); color: white; }
+    .rating-underweight { background: linear-gradient(135deg, #c2410c, #f97316); color: white; }
+    .rating-sell { background: linear-gradient(135deg, #dc2626, #ef4444); color: white; }
+    
+    .valuation-card {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid #3b82f6;
+        border-radius: 12px;
+        padding: 24px;
+        margin: 16px 0;
+    }
+    
+    .valuation-value { font-size: 2.5rem; font-weight: 800; color: #3b82f6; }
+    
+    .news-item {
+        padding: 12px 16px;
+        border-bottom: 1px solid #2d3748;
+        border-radius: 8px;
+        margin: 4px 0;
+        background: #1a1f2b;
+    }
+    
+    .news-item:hover { background: #252b3b; }
+    .news-title { color: #e2e8f0; font-weight: 500; font-size: 0.95rem; }
+    .news-source { color: #64748b; font-size: 0.8rem; }
+    
+    .si-metric {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #1e293b;
+    }
+    
+    .si-label { color: #64748b; }
+    .si-value { color: #e2e8f0; font-weight: 600; }
+    
+    .debate-card {
+        padding: 20px;
+        border-radius: 12px;
+        background: #1a1f2b;
+        margin: 12px 0;
+    }
+    
+    .debate-bull { border-left: 4px solid #10b981; }
+    .debate-bear { border-left: 4px solid #ef4444; }
+    
+    .stButton > button {
+        background: linear-gradient(135deg, #1a1f2b, #252b3b);
+        color: #e2e8f0;
+        border: 1px solid #2d3748;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #252b3b, #2d3748);
+        border-color: #4b5563;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background-color: #1a1f2b;
+        border-radius: 8px 8px 0 0;
+        padding: 10px 20px;
+        color: #64748b;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background-color: #252b3b;
+        color: #00d4aa;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# ============ IMPORTS (AFTER CSS) ============
+from src.v3.agents.dcf_valuation import DCFValuationAgent, DCFResult
+from src.v3.agents.dupont_analyzer import DuPontAnalyzer, DuPontResult
+from src.v3.agents.risk_manager_cfa import AdvancedRiskManager, AdvancedRiskResult
+from src.v3.news.multi_source import MultiSourceNewsAggregator
+from src.v3.selfimprove.engine import SelfImprovementEngine
+
+
+# ============ LLM DEBATE INTEGRATION ============
+
+# Import V2 LLM agents (bull/bear researchers, debate moderator)
+try:
+    from src.v2.llm import call_llm, extract_json
+    HAS_LLM = True
+except ImportError:
+    HAS_LLM = False
+
+# Import V1 technical/fundamental for LLM context
+try:
+    from src.v1.analysis.technical import TechnicalAnalyzer
+    from src.v1.analysis.fundamental import FundamentalAnalyzer
+    HAS_V1 = True
+except ImportError:
+    HAS_V1 = False
+
+
+# ============ LLM DEBATE FUNCTIONS ============
+
+def run_llm_debate(symbol: str, company_name: str, 
+                   dcf_result=None, dupont_result=None, 
+                   risk_result=None, news_sentiment=None) -> dict:
+    """
+    Run bull/bear debate using LLM.
+    Feeds CFA analysis results to the LLM for informed debate.
+    """
+    if not HAS_LLM:
+        return {"available": False, "reason": "LLM not available"}
+    
+    # Build context from CFA analysis
+    context_parts = [f"STOCK: {symbol} ({company_name})"]
+    
+    if dcf_result:
+        context_parts.append(f"\nDCF VALUATION:")
+        context_parts.append(f"  Intrinsic Value: ₹{dcf_result.intrinsic_value_per_share:,.0f}")
+        context_parts.append(f"  Market Price: ₹{dcf_result.current_price:,.0f}")
+        context_parts.append(f"  Upside: {dcf_result.upside_downside_pct:+.1f}%")
+        context_parts.append(f"  Status: {dcf_result.valuation_status}")
+        context_parts.append(f"  WACC: {dcf_result.wacc:.1f}%")
+    
+    if dupont_result:
+        context_parts.append(f"\nPROFITABILITY (DuPont):")
+        context_parts.append(f"  ROE: {dupont_result.roe:.1f}%")
+        context_parts.append(f"  Primary Driver: {dupont_result.primary_driver}")
+        context_parts.append(f"  Quality Score: {dupont_result.roe_quality_score:.0f}/100")
+        context_parts.append(f"  Operating Margin: {dupont_result.operating_margin:.1f}%")
+        context_parts.append(f"  Leverage: {dupont_result.financial_leverage:.1f}x")
+    
+    if risk_result:
+        context_parts.append(f"\nRISK ANALYSIS:")
+        context_parts.append(f"  Risk Category: {risk_result.risk_category}")
+        context_parts.append(f"  VaR (95%): {risk_result.var_95:.1f}%")
+        context_parts.append(f"  Sharpe Ratio: {risk_result.sharpe_ratio:.2f}")
+        context_parts.append(f"  Beta: {risk_result.beta:.2f}")
+        context_parts.append(f"  Max Drawdown: {risk_result.max_drawdown:.1f}%")
+    
+    if news_sentiment:
+        context_parts.append(f"\nNEWS SENTIMENT:")
+        context_parts.append(f"  Score: {news_sentiment.get('score', 50)}/100")
+        context_parts.append(f"  Label: {news_sentiment.get('label', 'neutral')}")
+    
+    context = "\n".join(context_parts)
+    
+    # === BULL RESEARCHER ===
+    bull_prompt = f"""{context}
+
+You are a BULL researcher. Build the strongest case FOR buying {symbol}.
+
+Use ONLY the data above. Focus on positive signals, upside potential, and why risks are manageable.
+
+Respond with ONLY this JSON:
+{{"thesis": "2-3 sentence bull thesis", "evidence": ["point 1", "point 2", "point 3"], "conviction": 0.7}}"""
+    
+    bull_result = extract_json(call_llm(bull_prompt, temperature=0.4, num_predict=400))
+    
+    # === BEAR RESEARCHER ===
+    bear_prompt = f"""{context}
+
+You are a BEAR researcher. Build the strongest case AGAINST buying {symbol}.
+
+Use ONLY the data above. Focus on risks, downside potential, and why positive signals may not hold.
+
+Respond with ONLY this JSON:
+{{"thesis": "2-3 sentence bear thesis", "evidence": ["risk 1", "risk 2", "risk 3"], "conviction": 0.6}}"""
+    
+    bear_result = extract_json(call_llm(bear_prompt, temperature=0.4, num_predict=400))
+    
+    # === DEBATE MODERATOR ===
+    bull_thesis = bull_result.get("thesis", "Bull thesis unavailable") if bull_result else "Bull thesis unavailable"
+    bear_thesis = bear_result.get("thesis", "Bear thesis unavailable") if bear_result else "Bear thesis unavailable"
+    
+    bull_conv = bull_result.get("conviction", 0.5) if bull_result else 0.5
+    bear_conv = bear_result.get("conviction", 0.5) if bear_result else 0.5
+    
+    moderator_prompt = f"""Evaluate this investment debate for {symbol}.
+
+BULL ARGUMENT (conviction: {bull_conv:.0%}):
+{bull_thesis}
+
+BEAR ARGUMENT (conviction: {bear_conv:.0%}):
+{bear_thesis}
+
+Underlying data:
+{context}
+
+Determine which side has the stronger case. Assign a sentiment score (0=very bearish, 100=very bullish).
+
+Respond with ONLY this JSON:
+{{"winner": "bull or bear or inconclusive", "reasoning": "2 sentences", "sentiment_score": 55, "confidence": 0.7}}"""
+    
+    debate_result = extract_json(call_llm(moderator_prompt, temperature=0.2, num_predict=300))
+    
+    return {
+        "available": True,
+        "bull_thesis": bull_thesis,
+        "bull_evidence": bull_result.get("evidence", []) if bull_result else [],
+        "bull_conviction": bull_conv,
+        "bear_thesis": bear_thesis,
+        "bear_evidence": bear_result.get("evidence", []) if bear_result else [],
+        "bear_conviction": bear_conv,
+        "debate_winner": debate_result.get("winner", "inconclusive") if debate_result else "inconclusive",
+        "debate_reasoning": debate_result.get("reasoning", "") if debate_result else "",
+        "sentiment_score": debate_result.get("sentiment_score", 50) if debate_result else 50,
+        "debate_confidence": debate_result.get("confidence", 0.5) if debate_result else 0.5,
+    }
+
+
+# ============ DISPLAY FUNCTIONS (DEFINED BEFORE USE) ============
+
+def format_inr(value, decimals=2):
+    if value is None:
+        return "—"
+    return f"₹{value:,.{decimals}f}"
+
+
+def display_dcf(dcf: DCFResult):
+    """Display DCF valuation results."""
+    st.markdown("### 💰 DCF Valuation")
+    
+    st.markdown(f"""
+    <div class="valuation-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <div style="color:#64748b; font-size:0.9rem;">Intrinsic Value</div>
+                <div class="valuation-value">{format_inr(dcf.intrinsic_value_per_share, 0)}</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="color:#64748b; font-size:0.9rem;">Market Price</div>
+                <div style="color:#fafafa; font-size:2rem; font-weight:800;">{format_inr(dcf.current_price, 0)}</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="color:#64748b; font-size:0.9rem;">Upside</div>
+                <div style="color:{'#10b981' if dcf.upside_downside_pct > 0 else '#ef4444'}; 
+                            font-size:2rem; font-weight:800;">
+                    {dcf.upside_downside_pct:+.1f}%
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    status_colors = {
+        "undervalued": "rating-buy",
+        "fairly_valued": "rating-hold",
+        "overvalued": "rating-sell"
+    }
+    badge_class = status_colors.get(dcf.valuation_status, "rating-hold")
+    st.markdown(
+        f'<div class="rating-badge {badge_class}" style="font-size:0.9em;">{dcf.valuation_status.replace("_", " ").upper()}</div>',
+        unsafe_allow_html=True
+    )
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("WACC", f"{dcf.wacc:.1f}%")
+    with col2:
+        st.metric("Terminal Growth", f"{dcf.terminal_growth_rate:.1f}%")
+    with col3:
+        st.metric("Revenue Growth", f"{dcf.revenue_growth_5y:.1f}%")
+    
+    if dcf.projected_fcff:
+        fig = go.Figure()
+        years = list(range(1, len(dcf.projected_fcff) + 1))
+        fig.add_trace(go.Bar(
+            x=years, y=dcf.projected_fcff,
+            marker_color=['#1a1f2b'] * (len(years) - 1) + ['#00d4aa'],
+            text=[f"₹{v:,.0f}Cr" for v in dcf.projected_fcff],
+            textposition='outside'
+        ))
+        fig.update_layout(
+            title="Projected FCFF (Crores)",
+            paper_bgcolor='#0e1117',
+            plot_bgcolor='#1a1f2b',
+            font_color='#e2e8f0',
+            height=300,
+            showlegend=False
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    st.info(dcf.interpretation)
+
+
+def display_dupont(dupont: DuPontResult):
+    """Display DuPont analysis."""
+    st.markdown("### 📈 DuPont ROE Decomposition")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("ROE", f"{dupont.roe:.1f}%")
+    with col2:
+        st.metric("ROA", f"{dupont.roa:.1f}%")
+    with col3:
+        st.metric("Quality", f"{dupont.roe_quality_score:.0f}/100")
+    
+    fig = go.Figure(go.Bar(
+        x=['Op Margin', 'Asset Turn', 'Leverage', 'Tax Burden', 'Int Burden'],
+        y=[dupont.operating_margin, 
+           min(100, dupont.asset_turnover * 50),
+           min(100, dupont.financial_leverage * 20),
+           dupont.tax_burden * 100,
+           dupont.interest_burden * 100],
+        marker_color=['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899'],
+    ))
+    fig.update_layout(
+        title="ROE Components",
+        paper_bgcolor='#0e1117',
+        plot_bgcolor='#1a1f2b',
+        font_color='#e2e8f0',
+        height=300,
+        showlegend=False
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+    driver_colors = {
+        "margin": "#10b981", "turnover": "#3b82f6",
+        "leverage": "#ef4444", "bank_model": "#f59e0b"
+    }
+    color = driver_colors.get(dupont.primary_driver, "#64748b")
+    st.markdown(
+        f"<div style='padding:12px 20px;background:#1a1f2b;border-radius:8px;"
+        f"border-left:4px solid {color};'>"
+        f"<b style='color:{color};'>{dupont.primary_driver.replace('_', ' ').title()}</b>"
+        f" — {dupont.quality_interpretation}</div>",
+        unsafe_allow_html=True
+    )
+
+
+def display_risk(risk: AdvancedRiskResult):
+    """Display risk metrics."""
+    st.markdown("### ⚠️ Risk Analysis")
+    
+    risk_colors = {
+        "low": "rating-buy", "moderate": "rating-hold",
+        "high": "rating-underweight", "very_high": "rating-sell"
+    }
+    badge = risk_colors.get(risk.risk_category, "rating-hold")
+    st.markdown(
+        f'<div class="rating-badge {badge}" style="font-size:1em;">{risk.risk_category.replace("_", " ").upper()} RISK</div>',
+        unsafe_allow_html=True
+    )
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("VaR (95%)", f"{risk.var_95:.1f}%")
+    with col2:
+        st.metric("Sharpe", f"{risk.sharpe_ratio:.2f}")
+    with col3:
+        st.metric("Beta", f"{risk.beta:.2f}")
+    with col4:
+        st.metric("Position", f"{risk.recommended_position_pct:.1f}%")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Max DD", f"{risk.max_drawdown:.1f}%")
+    with col2:
+        st.metric("Volatility", f"{risk.annual_volatility:.1f}%")
+    with col3:
+        st.metric("Alpha", f"{risk.alpha:.1f}%")
+    with col4:
+        st.metric("Sortino", f"{risk.sortino_ratio:.2f}")
+    
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=risk.risk_score,
+        title={'text': "Risk Score"},
+        gauge={
+            'axis': {'range': [0, 100]},
+            'bar': {'color': "#ef4444" if risk.risk_score > 60 else "#f59e0b" if risk.risk_score > 40 else "#10b981"},
+            'steps': [
+                {'range': [0, 30], 'color': "#1a3a2a"},
+                {'range': [30, 50], 'color': "#1a3a1a"},
+                {'range': [50, 70], 'color': "#3a2a1a"},
+                {'range': [70, 100], 'color': "#3a1a1a"},
+            ],
+        }
+    ))
+    fig.update_layout(paper_bgcolor='#0e1117', font_color='#e2e8f0', height=250)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def display_debate(debate: dict):
+    """Display LLM bull/bear debate."""
+    st.markdown("### ⚖️ LLM Debate: Bull vs Bear")
+    
+    if not debate.get("available"):
+        st.warning("LLM debate unavailable — check Ollama is running")
+        return
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown(
+            f"""<div class="debate-card debate-bull">
+                <div style="color:#10b981; font-weight:700; font-size:1.1rem; margin-bottom:8px;">
+                    🐂 BULL CASE (Conviction: {debate['bull_conviction']:.0%})
+                </div>
+                <div style="color:#e2e8f0; margin-bottom:12px;">{debate['bull_thesis']}</div>
+                <div style="color:#94a3b8; font-size:0.85rem;">
+                    <ul>
+                        {''.join(f'<li>{e}</li>' for e in debate.get('bull_evidence', [])[:3])}
+                    </ul>
+                </div>
+            </div>""",
+            unsafe_allow_html=True
+        )
+    
+    with col2:
+        st.markdown(
+            f"""<div class="debate-card debate-bear">
+                <div style="color:#ef4444; font-weight:700; font-size:1.1rem; margin-bottom:8px;">
+                    🐻 BEAR CASE (Conviction: {debate['bear_conviction']:.0%})
+                </div>
+                <div style="color:#e2e8f0; margin-bottom:12px;">{debate['bear_thesis']}</div>
+                <div style="color:#94a3b8; font-size:0.85rem;">
+                    <ul>
+                        {''.join(f'<li>{e}</li>' for e in debate.get('bear_evidence', [])[:3])}
+                    </ul>
+                </div>
+            </div>""",
+            unsafe_allow_html=True
+        )
+    
+    # Debate result
+    winner = debate.get("debate_winner", "inconclusive")
+    winner_colors = {"bull": "#10b981", "bear": "#ef4444", "inconclusive": "#f59e0b"}
+    color = winner_colors.get(winner, "#64748b")
+    
+    sentiment = debate.get("sentiment_score", 50)
+    
+    st.markdown(
+        f"""<div style="padding:16px 24px; background:#1a1f2b; border-radius:10px; 
+                    border-left:4px solid {color}; margin:16px 0;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <span style="color:{color}; font-weight:700; font-size:1.1rem;">
+                        {winner.upper()} WINS
+                    </span>
+                    <span style="color:#64748b; margin-left:16px;">
+                        Sentiment: {sentiment:.0f}/100
+                    </span>
+                </div>
+                <div style="color:#64748b;">
+                    Confidence: {debate.get('debate_confidence', 0):.0%}
+                </div>
+            </div>
+            <div style="color:#94a3b8; margin-top:8px; font-size:0.9rem;">
+                {debate.get('debate_reasoning', '')}
+            </div>
+        </div>""",
+        unsafe_allow_html=True
+    )
+    
+    # Sentiment gauge
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=sentiment,
+        title={'text': "Debate Sentiment"},
+        gauge={
+            'axis': {'range': [0, 100]},
+            'bar': {'color': color},
+            'steps': [
+                {'range': [0, 35], 'color': "#3a1a1a"},
+                {'range': [35, 65], 'color': "#3a3a1a"},
+                {'range': [65, 100], 'color': "#1a3a1a"},
+            ],
+        }
+    ))
+    fig.update_layout(paper_bgcolor='#0e1117', font_color='#e2e8f0', height=200)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def display_news(news_items, symbol):
+    """Display news with sentiment."""
+    st.markdown(f"### 📰 News for {symbol}")
+    
+    if not news_items:
+        st.info("No recent news found")
+        return
+    
+    news_agg = MultiSourceNewsAggregator()
+    sentiment = news_agg.detect_sentiment_keywords(news_items)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Sentiment", sentiment['label'].title(), f"{sentiment['score']}/100")
+    with col2:
+        st.metric("Items", len(news_items))
+    with col3:
+        diversity = news_agg.analyze_source_diversity(news_items)
+        st.metric("Source Diversity", f"{diversity['diversity_score']}/100")
+    
+    for item in news_items[:8]:
+        icon = {'positive': '📈', 'negative': '📉', 'neutral': '➡️'}.get(
+            item.sentiment_hint or 'neutral', '➡️')
+        
+        st.markdown(
+            f"""<div class="news-item">
+                {icon} <span class="news-title">{item.title}</span><br>
+                <span class="news-source">[{item.source}] Reliability: {item.reliability:.0%}</span>
+            </div>""",
+            unsafe_allow_html=True
+        )
+
+
+def display_analysis_summary(session):
+    """Compact summary for dashboard."""
+    symbol = session.get('analysis_symbol', '')
+    dcf = session.get('dcf_result')
+    dupont = session.get('dupont_result')
+    risk = session.get('risk_result')
+    debate = session.get('debate_result')
+    
+    if not any([dcf, dupont, risk, debate]):
+        return
+    
+    st.subheader(f"Latest Analysis: {symbol}")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if dcf:
+            st.metric("DCF Value", format_inr(dcf.intrinsic_value_per_share, 0),
+                     f"{dcf.upside_downside_pct:+.1f}%")
+    
+    with col2:
+        if dupont:
+            st.metric("ROE", f"{dupont.roe:.1f}%", f"Q: {dupont.roe_quality_score:.0f}")
+    
+    with col3:
+        if risk:
+            st.metric("Risk", risk.risk_category.title(),
+                     f"Pos: {risk.recommended_position_pct:.1f}%")
+    
+    with col4:
+        if debate and debate.get('available'):
+            sentiment = debate.get('sentiment_score', 50)
+            st.metric("Debate", debate.get('debate_winner', 'N/A').title(),
+                     f"Sent: {sentiment:.0f}")
+
+
+def display_full_analysis(session):
+    """Display all analysis results."""
+    symbol = session.get('analysis_symbol', '')
+    st.markdown(f"## Results: {symbol}")
+    
+    # CFA Analysis
+    dcf = session.get('dcf_result')
+    if dcf:
+        display_dcf(dcf)
+        st.markdown("---")
+    
+    dupont = session.get('dupont_result')
+    if dupont:
+        display_dupont(dupont)
+        st.markdown("---")
+    
+    risk = session.get('risk_result')
+    if risk:
+        display_risk(risk)
+        st.markdown("---")
+    
+    # LLM Debate
+    debate = session.get('debate_result')
+    if debate:
+        display_debate(debate)
+        st.markdown("---")
+    
+    # News
+    news = session.get('news_items')
+    if news:
+        display_news(news, symbol)
+
+
+# ============ SESSION STATE ============
+if 'dcf_result' not in st.session_state:
+    st.session_state.dcf_result = None
+if 'dupont_result' not in st.session_state:
+    st.session_state.dupont_result = None
+if 'risk_result' not in st.session_state:
+    st.session_state.risk_result = None
+if 'news_items' not in st.session_state:
+    st.session_state.news_items = None
+if 'debate_result' not in st.session_state:
+    st.session_state.debate_result = None
+if 'analysis_symbol' not in st.session_state:
+    st.session_state.analysis_symbol = None
+
+
+# ============ RUN FULL ANALYSIS ============
+
+def run_full_analysis(symbol: str, include_llm: bool = True, include_news: bool = True):
+    """Run complete V3 analysis: CFA + LLM Debate + News."""
+    symbol = symbol.upper()
+    company_name = symbol  # Could look up proper name
+    
+    results = {}
+    
+    # 1. DCF
+    st.session_state.dcf_result = DCFValuationAgent().analyze(symbol)
+    
+    # 2. DuPont
+    st.session_state.dupont_result = DuPontAnalyzer().analyze(symbol)
+    
+    # 3. Risk
+    st.session_state.risk_result = AdvancedRiskManager().analyze(symbol)
+    
+    # 4. News
+    news_sentiment = None
+    if include_news:
+        news_agg = MultiSourceNewsAggregator()
+        st.session_state.news_items = news_agg.get_stock_news(symbol)
+        
+        if st.session_state.news_items:
+            news_sentiment = news_agg.detect_sentiment_keywords(st.session_state.news_items)
+    
+    # 5. LLM Debate
+    if include_llm and HAS_LLM:
+        st.session_state.debate_result = run_llm_debate(
+            symbol=symbol,
+            company_name=company_name,
+            dcf_result=st.session_state.dcf_result,
+            dupont_result=st.session_state.dupont_result,
+            risk_result=st.session_state.risk_result,
+            news_sentiment=news_sentiment,
+        )
+    else:
+        st.session_state.debate_result = None
+    
+    st.session_state.analysis_symbol = symbol
+    
+    return results
+
+
+# ============ SIDEBAR ============
+st.sidebar.markdown("# 📊 Stock Agent")
+st.sidebar.markdown("### V3 — CFA + LLM Debate")
+st.sidebar.markdown("---")
+
+page = st.sidebar.radio(
+    "Navigate",
+    ["🏠 Dashboard", "🔍 Analyze Stock", "📊 CFA Metrics", "🧠 Self-Improvement", "🌐 Market"],
+    key="nav"
+)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"""
+**Components:**
+- DCF Valuation ✅
+- DuPont Analysis ✅
+- Risk Metrics (CFA) ✅
+- Multi-Source News ✅
+- LLM Debate {'✅' if HAS_LLM else '❌ (Ollama not detected)'}
+- Self-Improvement ✅
+
+**Model:** Phi-4-mini via Ollama
+
+**⚠️ Not investment advice**
+""")
+
+
+# ============ DASHBOARD PAGE ============
+if page == "🏠 Dashboard":
+    st.title("📊 Dashboard")
+    
+    # Quick metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        try:
+            engine = SelfImprovementEngine()
+            metrics = engine.get_performance_metrics()
+            st.metric("Accuracy", f"{metrics['overall_accuracy_pct']}%")
+        except:
+            st.metric("Accuracy", "—")
+    
+    with col2:
+        st.metric("LLM Status", "✅ Active" if HAS_LLM else "❌ Offline")
+    
+    with col3:
+        st.metric("News Sources", "9 feeds")
+    
+    with col4:
+        try:
+            engine = SelfImprovementEngine()
+            report = engine.get_improvement_report()
+            st.metric("Guardrails", report['active_guardrails'])
+        except:
+            st.metric("Guardrails", "0")
+    
+    # Quick analyze
+    st.subheader("Quick Analysis")
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        symbol = st.text_input("NSE Symbol", placeholder="RELIANCE, TCS, INFY...", key="quick_symbol")
+    
+    with col2:
+        if st.button("Analyze", type="primary", use_container_width=True):
+            if symbol:
+                with st.spinner(f"Running full analysis for {symbol.upper()}..."):
+                    run_full_analysis(symbol)
+                st.rerun()
+    
+    # Show previous results
+    if st.session_state.get('analysis_symbol'):
+        st.markdown("---")
+        display_analysis_summary(st.session_state)
+    
+    st.markdown("---")
+    st.caption("⚠️ For personal research only. Not investment advice.")
+
+
+# ============ ANALYZE PAGE ============
+elif page == "🔍 Analyze Stock":
+    st.title("🔍 Analyze Stock")
+    
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        symbol = st.text_input("NSE Symbol", key="analyze_symbol", placeholder="RELIANCE")
+    
+    with col2:
+        run_clicked = st.button("Run Full Analysis", type="primary", use_container_width=True)
+    
+    # Options
+    with st.expander("⚙️ Options"):
+        col1, col2 = st.columns(2)
+        with col1:
+            include_llm = st.checkbox("Include LLM Debate", value=HAS_LLM)
+            include_news = st.checkbox("Include News Analysis", value=True)
+        with col2:
+            include_dcf = st.checkbox("Include DCF", value=True)
+            include_risk = st.checkbox("Include Risk Analysis", value=True)
+    
+    if run_clicked and symbol:
+        symbol = symbol.upper()
+        
+        progress = st.progress(0)
+        status = st.empty()
+        
+        # DCF
+        if include_dcf:
+            status.text(f"DCF valuation for {symbol}...")
+            progress.progress(20)
+            st.session_state.dcf_result = DCFValuationAgent().analyze(symbol)
+        
+        # DuPont
+        status.text(f"DuPont analysis for {symbol}...")
+        progress.progress(40)
+        st.session_state.dupont_result = DuPontAnalyzer().analyze(symbol)
+        
+        # Risk
+        if include_risk:
+            status.text(f"Risk analysis for {symbol}...")
+            progress.progress(60)
+            st.session_state.risk_result = AdvancedRiskManager().analyze(symbol)
+        
+        # News
+        news_sentiment = None
+        if include_news:
+            status.text(f"Fetching news for {symbol}...")
+            progress.progress(75)
+            news_agg = MultiSourceNewsAggregator()
+            st.session_state.news_items = news_agg.get_stock_news(symbol)
+            if st.session_state.news_items:
+                news_sentiment = news_agg.detect_sentiment_keywords(st.session_state.news_items)
+        
+        # LLM Debate
+        if include_llm and HAS_LLM:
+            status.text(f"Running LLM debate for {symbol}... (30-60 seconds)")
+            progress.progress(85)
+            st.session_state.debate_result = run_llm_debate(
+                symbol=symbol,
+                company_name=symbol,
+                dcf_result=st.session_state.dcf_result,
+                dupont_result=st.session_state.dupont_result,
+                risk_result=st.session_state.risk_result,
+                news_sentiment=news_sentiment,
+            )
+        
+        progress.progress(100)
+        status.text("✓ Analysis complete!")
+        st.session_state.analysis_symbol = symbol
+        
+        time.sleep(0.5)
+        progress.empty()
+        status.empty()
+    
+    # Display results
+    if st.session_state.get('analysis_symbol'):
+        display_full_analysis(st.session_state)
+
+
+# ============ CFA METRICS PAGE ============
+elif page == "📊 CFA Metrics":
+    st.title("📊 CFA-Grade Analysis")
+    
+    symbol = st.text_input("Symbol", key="cfa_symbol")
+    
+    if st.button("Run CFA Analysis", type="primary") and symbol:
+        symbol = symbol.upper()
+        
+        tab1, tab2, tab3 = st.tabs(["💰 DCF", "📈 DuPont", "⚠️ Risk"])
+        
+        with tab1:
+            with st.spinner("Running DCF..."):
+                dcf = DCFValuationAgent().analyze(symbol)
+            if dcf:
+                display_dcf(dcf)
+            else:
+                st.warning("DCF unavailable — insufficient data")
+        
+        with tab2:
+            with st.spinner("Running DuPont..."):
+                dupont = DuPontAnalyzer().analyze(symbol)
+            if dupont:
+                display_dupont(dupont)
+            else:
+                st.warning("DuPont unavailable")
+        
+        with tab3:
+            with st.spinner("Running risk analysis..."):
+                risk = AdvancedRiskManager().analyze(symbol)
+            if risk:
+                display_risk(risk)
+            else:
+                st.warning("Risk analysis unavailable")
+
+
+# ============ SELF-IMPROVEMENT PAGE ============
+elif page == "🧠 Self-Improvement":
+    st.title("🧠 Self-Improvement Dashboard")
+    
+    try:
+        engine = SelfImprovementEngine()
+        report = engine.get_improvement_report()
+        
+        st.subheader("📊 Prediction Performance")
+        col1, col2, col3, col4 = st.columns(4)
+        perf = report['performance']
+        
+        with col1:
+            st.metric("Accuracy", f"{perf['overall_accuracy_pct']}%")
+        with col2:
+            st.metric("Evaluated", perf['total_evaluated'])
+        with col3:
+            st.metric("Correct", perf['total_correct'])
+        with col4:
+            st.metric("Guardrails", report['active_guardrails'])
+        
+        if perf.get('error_breakdown'):
+            st.subheader("Error Analysis")
+            error_df = pd.DataFrame(
+                list(perf['error_breakdown'].items()),
+                columns=['Error Type', 'Count']
+            )
+            fig = px.bar(error_df, x='Error Type', y='Count', color='Error Type',
+                        color_discrete_map={
+                            'over_optimistic': '#ef4444',
+                            'over_pessimistic': '#f59e0b',
+                            'neutral_error': '#64748b',
+                        })
+            fig.update_layout(paper_bgcolor='#0e1117', plot_bgcolor='#1a1f2b',
+                            font_color='#e2e8f0', height=300)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        if report.get('suggestions'):
+            st.subheader("💡 Improvement Suggestions")
+            for s in report['suggestions']:
+                with st.expander(f"{s['improvement_type']} → {s['target']}"):
+                    st.markdown(f"**Description:** {s['description']}")
+                    st.markdown(f"**Reason:** {s['reason']}")
+                    st.progress(s['confidence'])
+        
+        guardrails = engine.get_active_guardrails()
+        if guardrails:
+            st.subheader("🛡️ Guardrails")
+            for g in guardrails:
+                color = "#ef4444" if g['action'] == 'block' else "#f59e0b"
+                st.markdown(
+                    f"<div style='padding:8px 16px;border-left:3px solid {color};"
+                    f"margin:4px 0;background:#1a1f2b;border-radius:4px;'>"
+                    f"<span style='color:{color};font-weight:600;'>[{g['action'].upper()}]</span> "
+                    f"<span style='color:#e2e8f0;'>{g['rule']}</span></div>",
+                    unsafe_allow_html=True
+                )
+        
+    except Exception as e:
+        st.error(f"Error: {e}")
+
+
+# ============ MARKET PAGE ============
+elif page == "🌐 Market":
+    st.title("🌐 Market Context")
+    
+    try:
+        import yfinance as yf
+        
+        st.subheader("Nifty 50 — 6 Months")
+        nifty = yf.Ticker("^NSEI")
+        hist = nifty.history(period="6mo")
+        
+        if not hist.empty:
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=hist.index, y=hist['Close'],
+                mode='lines', name='Nifty 50',
+                line=dict(color='#00d4aa', width=2)
+            ))
+            if len(hist) > 50:
+                ma = hist['Close'].rolling(50).mean()
+                fig.add_trace(go.Scatter(
+                    x=hist.index, y=ma,
+                    mode='lines', name='50-day MA',
+                    line=dict(color='#f59e0b', dash='dot')
+                ))
+            fig.update_layout(
+                paper_bgcolor='#0e1117', plot_bgcolor='#1a1f2b',
+                font_color='#e2e8f0', height=400
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        st.subheader("📰 Latest Market News")
+        news_agg = MultiSourceNewsAggregator()
+        market_news = news_agg.get_market_news(max_items=10)
+        
+        for item in market_news[:8]:
+            icon = {'positive': '📈', 'negative': '📉', 'neutral': '➡️'}.get(
+                item.sentiment_hint or 'neutral', '➡️')
+            st.markdown(
+                f"<div class='news-item'>{icon} "
+                f"<span class='news-title'>{item.title}</span><br>"
+                f"<span class='news-source'>[{item.source}]</span></div>",
+                unsafe_allow_html=True
+            )
+        
+    except Exception as e:
+        st.error(f"Market data error: {e}")
+
+
+# ============ MAIN ============
+if __name__ == "__main__":
+    pass
