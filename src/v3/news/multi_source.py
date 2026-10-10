@@ -6,6 +6,8 @@ deduplication, and source bias detection.
 Sources: Moneycontrol, Economic Times, Business Standard,
 NSE, Livemint, SearXNG (fallback)
 """
+from dataclasses import dataclass
+
 import feedparser
 import requests
 import logging
