@@ -654,7 +654,8 @@ if page == "🏠 Dashboard":
     
     with col2:
         if st.button("Analyze", type="primary", use_container_width=True) and quick_symbol:
-            st.session_state.analysis_symbol = quick_symbol.upper()
+            st.session_state.nav = "🔍 Analyze Stock"
+            st.session_state.analyze_symbol = quick_symbol.upper()
             st.rerun()
     
     if st.session_state.get('v3_result'):
@@ -672,7 +673,8 @@ elif page == "🔍 Analyze Stock":
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        symbol = st.text_input("NSE Symbol", key="analyze_symbol", placeholder="RELIANCE")
+        prefill = st.session_state.get("analyze_symbol", "")
+        symbol = st.text_input("NSE Symbol", value=prefill, key="analyze_symbol", placeholder="RELIANCE")
     
     with col2:
         run_clicked = st.button("Run Full Analysis", type="primary", use_container_width=True)
