@@ -159,9 +159,131 @@ class DuPontAnalyzer:
             logger.error(f"[DuPont Agent] Data fetch error: {e}")
             return None
     
+    def _detect_bank(self, symbol: str, data: Dict) -> bool:
+        """Detect if company is a bank/financial institution."""
+        # Known banks
+        bank_symbols = {
+            "HDFCBANK", "ICICIBANK", "SBIN", "AXISBANK", "KOTAKBANK",
+            "INDUSINDBK", "BANKBARODA", "PNB", "CANBK", "UNIONBANK",
+            "IDFCFIRSTB", "FEDERALBNK", "AUBANK", "BANDHANBNK",
+            "RBLBANK", "YESBANK", "CSBBANK", "KARURVYSYA",
+            "HDFCLIFE", "SBILIFE", "ICICIPRULI", "LICI",
+            "BAJFINANCE", "BAJAJFINSV", "SHRIRAMFIN", "CHOLAFIN",
+            "MUTHOOTFIN", "MANAPPURAM", "PFC", "RECLTD", "IRFC",
+        }
+        
+        if symbol.upper() in bank_symbols:
+            return True
+        
+        # Heuristic: if asset turnover < 0.1 and leverage > 5
+        revenue = data.get("revenue", 0)
+        total_assets = data.get("total_assets", 1)
+        total_equity = data.get("total_equity", 1)
+        
+        asset_turnover = revenue / total_assets if total_assets > 0 else 0
+        leverage = total_assets / total_equity if total_equity > 0 else 0
+        
+        if asset_turnover < 0.1 and leverage > 5:
+            return True
+        
+        return False
+    
+    def _bank_decomposition(self, symbol: str, data: Dict) -> Optional[DuPontResult]:
+        """
+        Bank-specific profitability analysis.
+        For banks, standard DuPont is misleading because:
+        - 'Revenue' = interest income + fees
+        - 'Assets' = loans (huge)
+        - 'Leverage' = deposits/equity (naturally high, not risky)
+        
+        Instead use bank-specific metrics:
+        - ROE = Net Income / Equity
+        - ROA = Net Income / Total Assets  
+        - Net Interest Margin (NIM) proxy
+        - Cost-to-Income ratio
+        """
+        net_income = data.get("net_income", 0)
+        total_equity = data.get("total_equity", 0)
+        total_assets = data.get("total_assets", 0)
+        revenue = data.get("revenue", 0)
+        
+        if total_equity <= 0 or total_assets <= 0:
+            return None
+        
+        roe = net_income / total_equity
+        roa = net_income / total_assets
+        
+        # Bank-specific quality assessment
+        # For banks, ROE of 12-18% is good, leverage is expected
+        quality = 50.0
+        
+        if roe > 0.15:
+            quality += 20
+        elif roe > 0.12:
+            quality += 10
+        elif roe < 0.08:
+            quality -= 15
+        
+        # ROA for banks: 1-1.5% is good
+        if roa > 0.012:
+            quality += 15
+        elif roa > 0.01:
+            quality += 8
+        elif roa < 0.008:
+            quality -= 10
+        
+        quality = max(0, min(100, quality))
+        
+        # For banks, we don't decompose the same way
+        # Just report ROE, ROA, and overall quality
+        leverage = total_assets / total_equity
+        asset_turnover = revenue / total_assets
+        
+        interpretation = (
+            f"Bank/NBFC: ROE {roe*100:.1f}%, ROA {roa*100:.2f}%. "
+            f"Leverage of {leverage:.1f}x is normal for financial institutions. "
+        )
+        
+        if quality > 70:
+            interpretation += "Strong profitability for a financial company."
+        elif quality > 50:
+            interpretation += "Moderate profitability — monitor NIM and asset quality."
+        else:
+            interpretation += "Weak profitability — check NIM compression and NPAs."
+        
+        return DuPontResult(
+            symbol=symbol,
+            roe=round(roe * 100, 2),
+            roa=round(roa * 100, 2),
+            tax_burden=0.75,  # Standard for Indian banks
+            interest_burden=1.0,  # Not meaningful for banks
+            operating_margin=round((net_income / revenue) * 100, 2) if revenue > 0 else 0,
+            asset_turnover=round(asset_turnover, 4),
+            financial_leverage=round(leverage, 2),
+            net_profit_margin=round((net_income / revenue) * 100, 2) if revenue > 0 else 0,
+            primary_driver="bank_model",  # Special indicator
+            roe_quality_score=round(quality, 1),
+            quality_interpretation=interpretation,
+            revenue=round(revenue / 1e7, 1),
+            ebit=round(data.get("ebit", 0) / 1e7, 1),
+            ebt=round(data.get("ebt", 0) / 1e7, 1),
+            net_income=round(net_income / 1e7, 1),
+            total_assets=round(total_assets / 1e7, 1),
+            total_equity=round(total_equity / 1e7, 1),
+        )
+    
     def _decompose(self, symbol: str, data: Dict) -> Optional[DuPontResult]:
         """Perform 5-component DuPont decomposition."""
         try:
+            # Detect if this is a bank/financial company
+            # Banks have: low asset turnover (0.03-0.05), high leverage (6-12x)
+            # and EBT can exceed EBIT (interest income > interest expense)
+            is_bank = self._detect_bank(symbol, data)
+            
+            if is_bank:
+                return self._bank_decomposition(symbol, data)
+            
+            # Standard decomposition for non-banks...
             revenue = data["revenue"]
             ebit = data["ebit"]
             ebt = data["ebt"]

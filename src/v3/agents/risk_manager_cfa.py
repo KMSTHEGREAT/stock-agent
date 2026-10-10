@@ -126,9 +126,9 @@ class AdvancedRiskManager:
             
             result = AdvancedRiskResult(
                 symbol=symbol,
-                var_95=round(var_95, 2),
-                var_99=round(var_99, 2),
-                cvar_95=round(cvar_95, 2),
+                var_95=round(var_95 * 100, 2),     # was round(var_95, 2)
+                var_99=round(var_99 * 100, 2),     # was round(var_99, 2)
+                cvar_95=round(cvar_95 * 100, 2),   # was round(cvar_95, 2)
                 sharpe_ratio=round(sharpe, 2),
                 sortino_ratio=round(sortino, 2),
                 annual_return=round(annual_ret * 100, 2),
