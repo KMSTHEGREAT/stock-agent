@@ -653,17 +653,136 @@ if page == "🏠 Dashboard":
         quick_symbol = st.text_input("NSE Symbol", placeholder="RELIANCE, TCS, INFY...", key="quick_symbol")
     
     with col2:
-        if st.button("Analyze", type="primary", use_container_width=True) and quick_symbol:
-            st.session_state.nav = "🔍 Analyze Stock"
-            st.session_state.analyze_symbol = quick_symbol.upper()
-            st.rerun()
+        analyze_clicked = st.button("Analyze", type="primary", use_container_width=True)
     
-    if st.session_state.get('v3_result'):
+    if analyze_clicked and quick_symbol:
+        symbol = quick_symbol.upper()
+        
+        with st.status(f"Analyzing {symbol}...", expanded=True) as status:
+            st.write("📊 Technical analysis...")
+            tech_result = None
+            try:
+                tech_metrics = TechnicalAnalyzer().analyze(symbol, period="1y")
+                if tech_metrics:
+                    tech_scores = TechnicalScorer().score(tech_metrics)
+                    tech_result = {
+                        "score": tech_scores.get("total", 50),
+                        "rsi": tech_metrics.rsi,
+                        "trend": tech_metrics.trend.value if tech_metrics.trend else "neutral",
+                        "current_price": tech_metrics.current_price,
+                        "atr": tech_metrics.atr,
+                    }
+                    st.write(f"  ✅ Tech: {tech_result['score']:.0f}/100, RSI: {tech_result['rsi']:.0f}")
+            except Exception as e:
+                st.write(f"  ❌ {e}")
+            
+            st.write("📋 Fundamental analysis...")
+            fund_result = None
+            try:
+                fund_metrics = FundamentalAnalyzer().analyze(symbol)
+                if fund_metrics:
+                    fund_scores = FundamentalScorer().score(fund_metrics)
+                    fund_result = {"score": fund_scores.get("total", 50),
+                                  "pe_ratio": fund_metrics.pe_ratio}
+                    st.write(f"  ✅ Fund: {fund_result['score']:.0f}/100")
+            except Exception as e:
+                st.write(f"  ❌ {e}")
+            
+            st.write("💰 DCF valuation...")
+            dcf_result = None
+            try:
+                dcf = DCFValuationAgent().analyze(symbol)
+                if dcf:
+                    dcf_result = {"intrinsic_value": dcf.intrinsic_value_per_share,
+                                 "current_price": dcf.current_price,
+                                 "upside_pct": dcf.upside_downside_pct,
+                                 "status": dcf.valuation_status}
+                    st.write(f"  ✅ DCF: ₹{dcf.intrinsic_value_per_share:,.0f} ({dcf.upside_downside_pct:+.1f}%)")
+            except Exception as e:
+                st.write(f"  ❌ {e}")
+            
+            st.write("📈 DuPont analysis...")
+            dupont_result = None
+            try:
+                dupont = DuPontAnalyzer().analyze(symbol)
+                if dupont:
+                    dupont_result = {"roe": dupont.roe,
+                                    "primary_driver": dupont.primary_driver,
+                                    "quality_score": dupont.roe_quality_score}
+                    st.write(f"  ✅ ROE: {dupont.roe:.1f}% (Q: {dupont.roe_quality_score:.0f})")
+            except Exception as e:
+                st.write(f"  ❌ {e}")
+            
+            st.write("⚠️ Risk analysis...")
+            risk_result = None
+            try:
+                risk = AdvancedRiskManager().analyze(symbol)
+                if risk:
+                    risk_result = {"risk_category": risk.risk_category,
+                                  "risk_score": risk.risk_score,
+                                  "var_95": risk.var_95,
+                                  "sharpe": risk.sharpe_ratio,
+                                  "beta": risk.beta,
+                                  "position_pct": risk.recommended_position_pct}
+                    st.write(f"  ✅ {risk.risk_category} risk, Sharpe: {risk.sharpe_ratio:.2f}")
+            except Exception as e:
+                st.write(f"  ❌ {e}")
+            
+            st.write("📰 News analysis...")
+            news_result = None
+            try:
+                news_agg = MultiSourceNewsAggregator()
+                news_items = news_agg.get_stock_news(symbol)
+                if news_items:
+                    sentiment = news_agg.detect_sentiment_keywords(news_items)
+                    news_result = {"sentiment_score": sentiment.get("score", 50),
+                                  "sentiment_label": sentiment.get("label", "neutral"),
+                                  "item_count": len(news_items),
+                                  "items": [{"title": i.title, "source": i.source} for i in news_items[:10]]}
+                    st.write(f"  ✅ {len(news_items)} items ({sentiment.get('label')})")
+            except Exception as e:
+                st.write(f"  ❌ {e}")
+            
+            if HAS_LLM:
+                st.write("⚖️ LLM Debate (60-120s)...")
+                debate_result = _run_debate_with_progress(
+                    symbol, tech_result, fund_result, dcf_result,
+                    dupont_result, risk_result, news_result, st)
+            else:
+                debate_result = None
+            
+            st.write("🎯 Computing rating...")
+            final = _compute_final_rating_v3(
+                tech_result, fund_result, dcf_result,
+                dupont_result, risk_result, debate_result)
+            
+            st.write(f"  ✅ **{final['rating']}** (Score: {final['score']:.1f}/100)")
+            status.update(label="✓ Complete!", state="complete")
+        
+        # Store result
+        st.session_state.v3_result = {
+            "symbol": symbol,
+            "technical": tech_result,
+            "fundamental": fund_result,
+            "dcf": dcf_result,
+            "dupont": dupont_result,
+            "risk": risk_result,
+            "news": news_result,
+            "debate": debate_result,
+            "rating": final["rating"],
+            "overall_score": final["score"],
+            "conviction": final["conviction"],
+            "entry_price": final.get("entry"),
+            "target_price": final.get("target"),
+            "stop_loss": final.get("stop"),
+        }
+        
+        # Show results immediately below
         st.markdown("---")
         display_v3_results(st.session_state)
     
-    st.markdown("---")
-    st.caption("⚠️ For personal research only. Not investment advice.")
+    
+    
 
 
 # ============ ANALYZE PAGE ============
