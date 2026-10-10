@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-from src.pipeline import StockAnalysisPipeline
+from v2.pipeline import StockAnalysisPipeline
 from config.settings import DATABASE, DISCLAIMER
 
 # Session state
