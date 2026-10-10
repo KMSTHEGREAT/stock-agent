@@ -295,6 +295,9 @@ def format_inr(value, decimals=2):
         return "—"
     return f"₹{value:,.{decimals}f}"
 
+def get_rating_badge(rating):
+    """Generate HTML badge for a rating."""
+    return f'<div class="rating-badge rating-{rating.lower()}">{rating.upper()}</div>'
 
 def display_dcf(dcf: DCFResult):
     """Display DCF valuation results."""
@@ -622,6 +625,100 @@ def display_analysis_summary(session):
 
 
 def display_full_analysis(session):
+    """Display V3 unified results."""
+    result = session.get('v3_result')
+    if not result:
+        # Fallback to individual results
+        display_full_analysis_legacy(session)
+        return
+    
+    symbol = result['symbol']
+    st.markdown(f"## {symbol} — Complete Analysis")
+    
+    # Final rating
+    rating = result.get('rating', 'HOLD')
+    score = result.get('overall_score', 50)
+    
+    st.markdown(get_rating_badge(rating), unsafe_allow_html=True)
+    st.metric("Overall Score", f"{score}/100")
+    
+    # Component scores
+    st.markdown("### Component Breakdown")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    tech = result.get('technical')
+    fund = result.get('fundamental')
+    dcf = result.get('dcf')
+    risk = result.get('risk')
+    
+    with col1:
+        if tech:
+            st.metric("Technical", f"{tech['score']:.0f}/100")
+    with col2:
+        if fund:
+            st.metric("Fundamental", f"{fund['score']:.0f}/100")
+    with col3:
+        if dcf:
+            st.metric("DCF Upside", f"{dcf['upside_pct']:+.1f}%")
+    with col4:
+        if risk:
+            st.metric("Risk", risk['risk_category'].title())
+    
+    # Price levels
+    if result.get('entry_price'):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Entry", format_inr(result['entry_price']))
+        with col2:
+            st.metric("Target", format_inr(result['target_price']))
+        with col3:
+            st.metric("Stop Loss", format_inr(result['stop_loss']))
+    
+    st.markdown("---")
+    
+    # DCF Details
+    if dcf:
+        st.markdown(f"""
+        <div class="valuation-card">
+            <div style="color:#64748b;">DCF Intrinsic Value</div>
+            <div class="valuation-value">{format_inr(dcf['intrinsic_value'], 0)}</div>
+            <div style="color:#64748b;">vs Market: {format_inr(dcf['current_price'], 0)}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # DuPont
+    dupont = result.get('dupont')
+    if dupont:
+        st.markdown(f"""
+        <div style="padding:16px;background:#1a1f2b;border-radius:8px;margin:8px 0;">
+            <b>ROE: {dupont['roe']:.1f}%</b> (Driver: {dupont['primary_driver']}, 
+            Quality: {dupont['quality_score']:.0f}/100)
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Debate
+    debate = result.get('debate')
+    if debate:
+        display_debate(debate)
+    
+    # News
+    news = result.get('news')
+    if news:
+        st.markdown(f"### 📰 News ({news['item_count']} items, {news['sentiment_label']})")
+        for item in news.get('items', [])[:5]:
+            icon = {'positive': '📈', 'negative': '📉'}.get(item.get('sentiment'), '➡️')
+            st.markdown(
+                f"<div class='news-item'>{icon} {item['title']} "
+                f"<span class='news-source'>([{item['source']}])</span></div>",
+                unsafe_allow_html=True
+            )
+    
+    st.markdown("---")
+    st.caption(f"Processing time: {result.get('processing_time', 0)}s | "
+              f"Not investment advice")
+
+def display_full_analysis_legacy(session):
     """Display all analysis results."""
     symbol = session.get('analysis_symbol', '')
     st.markdown(f"## Results: {symbol}")
@@ -672,47 +769,28 @@ if 'analysis_symbol' not in st.session_state:
 # ============ RUN FULL ANALYSIS ============
 
 def run_full_analysis(symbol: str, include_llm: bool = True, include_news: bool = True):
-    """Run complete V3 analysis: CFA + LLM Debate + News."""
-    symbol = symbol.upper()
-    company_name = symbol  # Could look up proper name
+    """Run complete V3 unified pipeline."""
+    from src.v3.pipeline import V3Pipeline
     
-    results = {}
+    pipeline = V3Pipeline()
+    result = pipeline.analyze(
+        symbol.upper(), 
+        include_llm=include_llm, 
+        include_news=include_news
+    )
     
-    # 1. DCF
-    st.session_state.dcf_result = DCFValuationAgent().analyze(symbol)
+    # Store in session state for display
+    st.session_state.v3_result = result
+    st.session_state.analysis_symbol = symbol.upper()
     
-    # 2. DuPont
-    st.session_state.dupont_result = DuPontAnalyzer().analyze(symbol)
+    # Also store individual results for display functions
+    st.session_state.dcf_result = None  # Will use v3_result instead
+    st.session_state.dupont_result = None
+    st.session_state.risk_result = None
+    st.session_state.debate_result = result.get("debate")
+    st.session_state.news_items = None
     
-    # 3. Risk
-    st.session_state.risk_result = AdvancedRiskManager().analyze(symbol)
-    
-    # 4. News
-    news_sentiment = None
-    if include_news:
-        news_agg = MultiSourceNewsAggregator()
-        st.session_state.news_items = news_agg.get_stock_news(symbol)
-        
-        if st.session_state.news_items:
-            news_sentiment = news_agg.detect_sentiment_keywords(st.session_state.news_items)
-    
-    # 5. LLM Debate
-    if include_llm and HAS_LLM:
-        st.session_state.debate_result = run_llm_debate(
-            symbol=symbol,
-            company_name=company_name,
-            dcf_result=st.session_state.dcf_result,
-            dupont_result=st.session_state.dupont_result,
-            risk_result=st.session_state.risk_result,
-            news_sentiment=news_sentiment,
-        )
-    else:
-        st.session_state.debate_result = None
-    
-    st.session_state.analysis_symbol = symbol
-    
-    return results
-
+    return result
 
 # ============ SIDEBAR ============
 st.sidebar.markdown("# 📊 Stock Agent")
